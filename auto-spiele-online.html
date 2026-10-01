@@ -41,6 +41,8 @@
   .roomlist{display:flex;flex-direction:column;gap:10px;margin-bottom:8px;max-height:46vh;overflow-y:auto;}
   .roomitem{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:13px;box-shadow:var(--schatten);font-weight:800;transition:transform .06s;text-align:left;}
   .roomitem:active{transform:translateY(2px);}
+  .roomrow{display:flex;gap:6px;align-items:stretch;} .roomrow .roomitem{flex:1;}
+  .rmini{width:46px;border-radius:14px;background:#fff;box-shadow:var(--schatten);font-size:18px;}
   .roomitem .rc{flex:1;font-size:16px;line-height:1.25;} .roomitem .rp{font-size:12px;color:var(--asphalt-soft);font-weight:700;}
   .miniadd{width:100%;background:var(--asphalt);color:#fff;border-radius:14px;padding:14px;font-weight:800;font-size:15px;box-shadow:var(--schatten);margin-top:4px;}
 
@@ -178,6 +180,24 @@
 
   .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%) translateY(20px);background:var(--asphalt);color:#fff;padding:11px 18px;border-radius:14px;font-weight:800;box-shadow:var(--schatten-tief);opacity:0;pointer-events:none;transition:.25s;z-index:120;font-size:14px;text-align:center;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .pcard{background:#fff;border-radius:18px;padding:12px;box-shadow:var(--schatten);border-top:8px solid var(--c,#ccc);margin-bottom:12px;text-align:left;}
+  .phead{display:flex;align-items:center;gap:8px;margin-bottom:8px;} .pav{font-size:34px;line-height:1;} .phead b{flex:1;}
+  .pdel{width:30px;height:30px;border-radius:50%;background:#c0392b;color:#fff;font-weight:900;}
+  .pname{width:100%;border:2px solid #e6e2d6;border-radius:12px;padding:10px;font-size:17px;font-weight:800;margin-bottom:8px;}
+  .swatches{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+  .sw{width:34px;height:34px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px #ddd;} .sw.on{box-shadow:0 0 0 4px var(--asphalt);}
+  .avs{display:flex;flex-wrap:wrap;gap:6px;}
+  .av{font-size:26px;width:44px;height:44px;border-radius:12px;background:#f3f0e6;} .av.on{background:var(--sonne);box-shadow:0 0 0 3px var(--asphalt);}
+  .edsec{font-weight:900;margin:14px 0 8px;}
+  #driveMode{display:none;position:fixed;inset:0;z-index:2000;background:#15141a;padding:10px;}
+  #driveMode.on{display:flex;flex-direction:column;}
+  #driveGrid{flex:1;display:grid;gap:10px;min-height:0;}
+  .dtile{background:#fff;border-radius:22px;border:8px solid var(--t);display:flex;align-items:center;justify-content:center;line-height:1;padding:0;transition:transform .06s,background .15s;}
+  .dtile:active{transform:scale(.97);} .dtile.ok{background:#b6f2c9;}
+  #driveX{position:absolute;top:6px;right:6px;z-index:2;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-weight:900;font-size:16px;}
+  #driveRoad{position:absolute;top:8px;left:12px;z-index:2;font-size:20px;opacity:.7;}
+  #driveMode.on~.toast,.toast{z-index:3000;}
+
 
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
   @media (max-width:340px){.cards{grid-template-columns:1fr;}}
@@ -215,14 +235,12 @@ const APPROVAL_MIN = 5;
 
 <div class="fullscreen" id="famSetup" style="display:none">
   <div class="logo">👪</div><h1>Willkommen!</h1>
-  <p class="lead">Richtet eure Familie kurz ein. Das geht nur einmal.</p>
-  <div class="field"><label>Name des Vaters (Chef 👑)</label><input id="fsPapa" maxlength="12" placeholder="Name" autocomplete="off"></div>
-  <div class="field"><label>Eure PIN (4&ndash;8 Ziffern)</label><input id="fsPin" class="code" inputmode="numeric" maxlength="8" placeholder="****" autocomplete="off"></div>
-  <div class="field"><label>Kind 1</label><input id="fsK1" maxlength="12" placeholder="Name" autocomplete="off"></div>
-  <div class="field"><label>Kind 2</label><input id="fsK2" maxlength="12" placeholder="Name" autocomplete="off"></div>
+  <p class="lead">Richtet eure Familie kurz ein: Name, Farbe und Bild f&uuml;r jeden. Das geht nur einmal.</p>
+  <div id="fsEditor"></div>
+  <div class="field" style="margin-top:14px"><label>Gemeinsame Eltern-PIN (4&ndash;8 Ziffern)</label><input id="fsPin" class="code" inputmode="numeric" maxlength="8" placeholder="****" autocomplete="off"></div>
   <button class="miniadd" onclick="doFamSetup()">✅ Fertig, los geht's</button>
   <p class="hint" id="famErr" style="color:#c0392b;font-weight:800"></p>
-  <p class="hint">Mit der PIN meldet sich der Vater sp&auml;ter als Chef an.</p>
+  <p class="hint">Mit dieser PIN melden sich Vater und Mutter sp&auml;ter als Chef an. Name, Farbe und Bild kann sp&auml;ter jeder selbst &auml;ndern.</p>
 </div>
 <div class="fullscreen" id="famInvalid" style="display:none">
   <div class="logo">🔒</div><h1>Link nicht g&uuml;ltig</h1>
@@ -238,7 +256,8 @@ const APPROVAL_MIN = 5;
     <button class="miniadd" onclick="showCreate()">➕ Neue Fahrt starten</button>
   </div>
   <div id="createView" style="display:none">
-    <div class="field"><label>Wohin geht die Fahrt? (Ziel oder Adresse)</label><input id="zielInput" maxlength="40" placeholder="z.B. Oma in K&ouml;ln" autocomplete="off"></div>
+    <div class="field"><label>Name der Fahrt oder Ziel</label><input id="zielInput" maxlength="40" placeholder="z.B. Oma in K&ouml;ln, Sommerurlaub, 12.10." autocomplete="off"></div>
+    <p class="hint" style="margin:-6px 0 12px">Das kann ein Ziel, ein Datum oder einfach ein Name sein. F&uuml;r die Route-Taste (Google Maps) am besten ein Ort oder eine Adresse.</p>
     <button class="miniadd" onclick="doCreateFahrt()">🏁 Fahrt starten</button>
     <p class="hint"><a href="#" onclick="showLobby();return false;">zur&uuml;ck</a></p>
   </div>
@@ -249,7 +268,7 @@ const APPROVAL_MIN = 5;
     <p class="hint"><a href="#" onclick="showLobby();return false;">andere Fahrt</a></p>
   </div>
   <div id="pinView" style="display:none">
-    <div class="field"><label>PIN f&uuml;r <span class="chefName">Tobias</span></label><input id="pin" class="code" inputmode="numeric" maxlength="8" placeholder="****"></div>
+    <div class="field"><label>PIN f&uuml;r <span id="pinFor">Tobias</span></label><input id="pin" class="code" inputmode="numeric" maxlength="8" placeholder="****"></div>
     <button class="miniadd" onclick="checkPin()">Einloggen</button>
     <p class="hint" id="pinHint"><a href="#" onclick="backToPick();return false;">zur&uuml;ck</a></p>
   </div>
@@ -265,7 +284,7 @@ const APPROVAL_MIN = 5;
     <div class="topline">
       <button class="home-btn" onclick="go('home')">🏠</button>
       <button class="home-btn" id="flagBtn" onclick="openMaps()" style="display:none">🏁</button>
-      <div class="brand">Auto-Spiele <small id="whoLabel">–</small></div>
+      <div class="brand">Auto-Spiele <small id="whoLabel" onclick="openProfil()" style="cursor:pointer">–</small></div>
       <div class="dot" id="connDot"></div>
     </div>
     <div class="board" id="board"></div>
@@ -303,6 +322,7 @@ const APPROVAL_MIN = 5;
 
     <section class="screen" id="jagd">
       <h2 class="title">🔍 Sammel-Jagd</h2>
+      <div class="rowbtns" style="margin-bottom:10px"><button class="softbtn dark" onclick="openDrive()">🚗 Fahrmodus</button></div>
       <div class="switcher" id="roadTypes"></div>
       <div class="switcher" id="jagdModes"></div><div class="modeinfo" id="jagdModeInfo"></div>
       <div class="grid" id="jagdGrid"></div>
@@ -344,7 +364,7 @@ const APPROVAL_MIN = 5;
       <h2 class="title">🎯 Dingo-Bingo</h2>
       <div class="switcher" id="bingoModes"></div><div class="modeinfo" id="bingoModeInfo"></div>
       <div id="bingoSetup" style="display:none">
-        <p class="sub">Trage bis zu 5 Dinge ein (nur <span class="chefName">Tobias</span>):</p>
+        <p class="sub">Trage bis zu 5 Dinge ein (nur <span class="chefNames">Tobias</span>):</p>
         <div id="bingoInputs"></div>
       </div>
       <div class="bingocard" id="bingoCard"></div>
@@ -369,6 +389,23 @@ const APPROVAL_MIN = 5;
       <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
     </section>
 
+    <section class="screen" id="profil">
+      <h2 class="title">🎨 Mein Profil</h2>
+      <p class="sub">W&auml;hle deine Farbe und dein Bild.</p>
+      <div class="pcard" id="profBody"></div>
+      <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
+    </section>
+
+    <section class="screen" id="familieEdit">
+      <h2 class="title">👪 Familie bearbeiten</h2>
+      <p class="sub">Personen hinzuf&uuml;gen oder entfernen, Namen, Farben und Bilder &auml;ndern.</p>
+      <div id="feBody"></div>
+      <div class="field" style="margin-top:14px"><label>Neue gemeinsame PIN (leer = behalten)</label><input id="fePin" class="code" inputmode="numeric" maxlength="8" placeholder="****" autocomplete="off"></div>
+      <button class="miniadd" onclick="feSave()">💾 Speichern</button>
+      <p class="hint" id="feErr" style="color:#c0392b;font-weight:800"></p>
+      <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
+    </section>
+
     <section class="screen" id="schiri">
       <h2 class="title">⚖️ Schiedsrichter</h2>
       <p class="sub">Du bist immer Schiri. Schalte Kinder dazu — sie d&uuml;rfen dann mit best&auml;tigen. Deine Bestimmung &uuml;berstimmt.</p>
@@ -387,6 +424,7 @@ const APPROVAL_MIN = 5;
   <div id="notif"></div>
   <div id="approvals"></div>
   <div class="toast" id="toast"></div>
+  <div id="driveMode"><button id="driveX" onclick="closeDrive()">✕</button><div id="driveRoad"></div><div id="driveGrid"></div></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -530,7 +568,21 @@ const GAME_LABEL = {gelb:'🟡 Gelbes Auto',jagd:'🔍 Jagd',ichsehe:'👁️ Ic
 const FAM=(new URLSearchParams(location.search).get('f')||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,30);
 const BASE=FAM?('fam/'+FAM+'/'):'';
 const LSP='playerId_'+(FAM?FAM+'_':'');
-let CHEF_ID='tobias', CHEF_NAME='Tobias', PLAYERS=DEFAULT_PLAYERS, FAM_SETUP=null;
+let _syncKey='', LAST_LOB={};
+let CHEF_ID='tobias', CHEF_NAME='Tobias', PLAYERS=DEFAULT_PLAYERS, FAM_SETUP=null, PROF={};
+const COLORS=['#5D4037','#2FB37A','#E8478E','#2D7DD2','#FB8C00','#8E44AD','#16A085','#c0392b','#F9A825','#546E7A','#7CB342','#00897B'];
+const AVATARS=['🦊','🐼','🦁','🐯','🐸','🐵','🦄','🐙','🦖','🐶','🐱','🐰','🐻','🦉','🐧','🐢','🚀','⚽','🌟','🎸'];
+const ROLE={vater:'Vater 👑',mutter:'Mutter 👑',kind:'Kind'};
+function arr(x){return Array.isArray(x)?x:Object.keys(x||{}).map(k=>x[k]);}
+function isChefId(id){return FAM?!!(PROF[id]&&PROF[id].chef):id===CHEF_ID;}
+function avn(p){return (p.avatar?p.avatar+' ':'')+esc(p.name);}
+function mergePlayers(pl){
+  const rem=(FAM&&FAM_SETUP)?FAM_SETUP.removed:[];
+  return Object.keys(pl||{}).filter(id=>rem.indexOf(id)<0).map(id=>{
+    const p=Object.assign({id},pl[id]);const f=PROF[id];
+    if(f){if(f.color)p.color=f.color;if(f.avatar)p.avatar=f.avatar;if(f.name)p.name=f.name;}
+    return p;}).sort((a,b)=>(a.order||0)-(b.order||0));
+}
 let db=null, roomRef=null, roomCode=null, room={}, me=null, joinCode=null, pendingPick=null;
 let editMode={}, listenerReady=false, prevSpyTurn=null, _lastLeader='', _confettiShownFor='';
 let localSpyPick=null, localRiddleLevel='leicht', localRiddle=null, localBingoInputs=['','','','',''];
@@ -566,7 +618,7 @@ function boot(){
     if(st&&st.done){applyFamSetup(st);startLogin();return;}
     db.ref('invites/'+FAM).once('value',iv=>{
       const inv=iv.val();
-      if(inv&&inv.status==='open'){document.getElementById('famSetup').style.display='flex';}
+      if(inv&&inv.status==='open'){document.getElementById('famSetup').style.display='flex';initSetup();}
       else{document.getElementById('famInvalid').style.display='flex';}
     });
   });
@@ -576,10 +628,15 @@ function startLogin(){
   document.getElementById('login').style.display='flex';
   showLobby();
   R('lobby').on('value',s=>renderHistory(s.val()||{}));
+  if(FAM)R('setup').on('value',s=>{const st=s.val();if(st&&st.done){applyFamSetup(st);if(me)renderAll();}});
+  else R('profiles').on('value',s=>{PROF=s.val()||{};if(me)renderAll();});
 }
 function applyFamSetup(st){
-  FAM_SETUP=st;CHEF_ID=st.chef.id;CHEF_NAME=st.chef.name;PLAYERS=st.players;
-  document.querySelectorAll('.chefName').forEach(e=>e.textContent=CHEF_NAME);
+  const ps=arr(st.players).map(p=>Object.assign({},p));
+  FAM_SETUP=Object.assign({},st,{players:ps,removed:arr(st.removed)});
+  PROF={};ps.forEach(p=>PROF[p.id]=p);PLAYERS=ps;
+  const chefs=ps.filter(p=>p.chef).map(p=>p.name);
+  document.querySelectorAll('.chefNames').forEach(e=>e.textContent=chefs.join(' & ')||'Eltern');
 }
 async function hashPin(pin,salt){
   const str=salt+':'+pin;
@@ -588,14 +645,11 @@ async function hashPin(pin,salt){
 }
 function famErr(m){const e=document.getElementById('famErr');e.textContent=m;}
 async function doFamSetup(){
-  const g=id=>(document.getElementById(id).value||'').trim();
-  const papa=g('fsPapa'),pin=g('fsPin'),k1=g('fsK1'),k2=g('fsK2');
-  if(!papa||!k1||!k2){famErr('Bitte alle drei Namen eintragen.');return;}
+  const pin=(document.getElementById('fsPin').value||'').trim();
+  const players=edCollect(document.getElementById('famErr'));if(!players)return;
   if(!/^[0-9]{4,8}$/.test(pin)){famErr('Die PIN braucht 4 bis 8 Ziffern.');return;}
   const salt=Math.random().toString(36).slice(2,10);
-  const data={done:true,created:Date.now(),salt,pinHash:await hashPin(pin,salt),
-    chef:{id:'papa',name:papa},
-    players:[{id:'papa',name:papa,color:'#5D4037',chef:true},{id:'kind1',name:k1,color:'#2FB37A'},{id:'kind2',name:k2,color:'#E8478E'}]};
+  const data={done:true,created:Date.now(),salt,pinHash:await hashPin(pin,salt),players,removed:[]};
   R('setup').transaction(cur=>cur?undefined:data,(err,committed)=>{
     if(err||!committed){famErr('Diese Familie ist schon eingerichtet. Lade die Seite neu.');return;}
     db.ref('invites/'+FAM).update({status:'done',doneAt:Date.now()});
@@ -603,10 +657,11 @@ async function doFamSetup(){
   },false);
 }
 function renderHistory(lob){
+  LAST_LOB=lob;const mgr=!!(me&&me.isChef);
   const keys=Object.keys(lob).sort((a,b)=>((lob[b].date||0)-(lob[a].date||0)));
   const el=document.getElementById('roomList');
   if(!keys.length){el.innerHTML='<div class="hint" style="margin:0">Noch keine Fahrten. Starte die erste!</div>';return;}
-  el.innerHTML=keys.map(k=>{const L=lob[k];const ziel=L.ziel||k;const date=L.date?new Date(L.date).toLocaleDateString('de-DE'):'';const win=L.leaderName?('🏆 '+esc(L.leaderName)+' ('+(L.leaderScore||0)+')'):'';return '<button class="roomitem" onclick="enterRoom(\''+k+'\')"><span class="rc">'+esc(ziel)+'<br><span class="rp">'+date+' '+win+'</span></span><span class="rp">&rarr;</span></button>';}).join('');
+  el.innerHTML=keys.map(k=>{const L=lob[k];const ziel=L.ziel||k;const date=L.date?new Date(L.date).toLocaleDateString('de-DE'):'';const win=L.leaderName?('🏆 '+esc(L.leaderName)+' ('+(L.leaderScore||0)+')'):'';return '<div class="roomrow"><button class="roomitem" onclick="enterRoom(\''+k+'\')"><span class="rc">'+esc(ziel)+'<br><span class="rp">'+date+' '+win+'</span></span><span class="rp">&rarr;</span></button>'+(mgr?'<button class="rmini" onclick="renameTrip(\''+k+'\')">✎</button><button class="rmini" onclick="deleteTrip(\''+k+'\')">🗑️</button>':'')+'</div>';}).join('');
 }
 function showLobby(){['createView','pickView','pinView','addView'].forEach(v=>document.getElementById(v).style.display='none');document.getElementById('lobbyView').style.display='block';}
 function showCreate(){document.getElementById('lobbyView').style.display='none';document.getElementById('createView').style.display='block';document.getElementById('zielInput').focus();}
@@ -624,7 +679,7 @@ function enterRoom(code,zielKnown){
   document.getElementById('createView').style.display='none';
   R('rooms/'+code+'/players').once('value',s=>{
     if(!s.val()){
-      const seed={};PLAYERS.forEach((p,i)=>seed[p.id]={name:p.name,color:p.color,score:0,order:i});
+      const seed={};PLAYERS.forEach((p,i)=>seed[p.id]={name:p.name,color:p.color,avatar:p.avatar||'',score:0,order:i});
       R('rooms/'+code+'/players').set(seed);
       R('rooms/'+code+'/content').set(SEED);
       R('rooms/'+code+'/config').set({roadType:'autobahn',referees:{},modes:{},round:{}});
@@ -634,20 +689,23 @@ function enterRoom(code,zielKnown){
       document.getElementById('pickRoom').textContent=z;
       R('lobby/'+code).update({ziel:z,date:(ms.val()&&ms.val().created)||Date.now()});
     });
-    R('rooms/'+code+'/players').once('value',s2=>{renderPick(s2.val()||{});document.getElementById('pickView').style.display='block';});
+    R('rooms/'+code+'/players').once('value',s2=>{
+      const pl=s2.val()||{};
+      if(FAM&&FAM_SETUP){const up={};FAM_SETUP.players.forEach((p,i)=>{if(!pl[p.id]){up[p.id]={name:p.name,color:p.color,avatar:p.avatar||'',score:0,order:i};}});if(Object.keys(up).length){R('rooms/'+code+'/players').update(up);Object.assign(pl,up);}}
+      renderPick(pl);document.getElementById('pickView').style.display='block';});
   });
 }
 function renderPick(pl){
-  const arr=Object.keys(pl).map(id=>Object.assign({id},pl[id])).sort((a,b)=>(a.order||0)-(b.order||0));
+  const arr=mergePlayers(pl);
   const savedId=lsGet(LSP+joinCode);
   document.getElementById('nameBtns').innerHTML=arr.map(p=>{
-    const chef=p.id===CHEF_ID;
-    return '<button class="namebtn '+(p.id===savedId?'sel':'')+'" style="--c:'+p.color+'" onclick="pickName(\''+p.id+'\',\''+esc(p.name)+'\',\''+p.color+'\','+(chef?1:0)+')">'+esc(p.name)+(chef?'<span class="tag">Chef 👑</span>':'')+'</button>';
+    const chef=isChefId(p.id);
+    return '<button class="namebtn '+(p.id===savedId?'sel':'')+'" style="--c:'+p.color+'" onclick="pickName(\''+p.id+'\',\''+esc(p.name)+'\',\''+p.color+'\','+(chef?1:0)+')">'+avn(p)+(chef?'<span class="tag">Chef 👑</span>':'')+'</button>';
   }).join('');
 }
 function pickName(id,name,color,chef){
   initAudio();
-  if(chef){pendingPick={id,name,color,chef:true};document.getElementById('pickView').style.display='none';document.getElementById('pinView').style.display='block';document.getElementById('pin').value='';document.getElementById('pin').focus();return;}
+  if(chef){document.getElementById('pinFor').textContent=name;pendingPick={id,name,color,chef:true};document.getElementById('pickView').style.display='none';document.getElementById('pinView').style.display='block';document.getElementById('pin').value='';document.getElementById('pin').focus();return;}
   me={id,name,color,isChef:false};finishJoin();
 }
 async function checkPin(){
@@ -679,24 +737,36 @@ function finishJoin(){
   setTimeout(()=>{listenerReady=true;},1400);
   document.getElementById('login').style.display='none';
   document.getElementById('app').style.display='block';
-  document.getElementById('whoLabel').textContent=me.name+(me.isChef?' (Chef)':'');
+  document.getElementById('whoLabel').textContent=(me.avatar?me.avatar+' ':'')+me.name+(me.isChef?' (Chef)':'')+' ✎';
   document.getElementById('heroHi').textContent='Hallo '+me.name+'! 🚀';
   ['refBtn','punkteBtn','resetBtn','reset2','gelbEdit','jagdEdit','spyEdit','raetselEdit','bingoEdit'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=me.isChef?'flex':'none';});
-  document.getElementById('famBtn').style.display=(me.isChef&&!FAM)?'flex':'none';
+  const fb=document.getElementById('famBtn');fb.style.display=me.isChef?'flex':'none';fb.onclick=FAM?(()=>openFamEdit(FAM)):(()=>go('familien'));
   go('home');
 }
-function leaveRoom(){if(roomRef){roomRef.off();db.ref('.info/connected').off();}document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex';showLobby();}
+function renameTrip(k){
+  if(!me||!me.isChef)return;
+  const cur=(LAST_LOB[k]&&LAST_LOB[k].ziel)||k;
+  const n=(prompt('Neuer Name der Fahrt:',cur)||'').trim().slice(0,40);if(!n)return;
+  R('lobby/'+k).update({ziel:n});R('rooms/'+k+'/meta').update({ziel:n});
+}
+function deleteTrip(k){
+  if(!me||!me.isChef)return;
+  const cur=(LAST_LOB[k]&&LAST_LOB[k].ziel)||k;
+  if(!confirm('Fahrt \u201e'+cur+'\u201c mit allen Punkten endg\u00fcltig l\u00f6schen?'))return;
+  R('lobby/'+k).remove();R('rooms/'+k).remove();toast('Fahrt gel\u00f6scht');
+}
+function leaveRoom(){if(roomRef){roomRef.off();db.ref('.info/connected').off();}document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex';showLobby();renderHistory(LAST_LOB);}
 function openMaps(){const z=(room.meta&&room.meta.ziel);if(!z)return;window.open('https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(z),'_blank');}
 
-function playersArr(){const pl=room.players||{};return Object.keys(pl).map(id=>Object.assign({id},pl[id])).sort((a,b)=>(a.order||0)-(b.order||0));}
+function playersArr(){return mergePlayers(room.players||{});}
 function cfg(){return room.config||{};}
 function modeOf(g){let m=(cfg().modes||{})[g]||'gesamt';if(m==='endlos')m='gesamt';return m;}
 function roundCfg(g){return (cfg().round||{})[g]||{type:'target',target:10};}
 function content(){return room.content||SEED;}
-function activeReferees(){const r=(cfg().referees)||{};const list=[CHEF_ID];Object.keys(r).forEach(k=>{if(r[k]&&k!==CHEF_ID)list.push(k);});return list;}
+function activeReferees(){const r=(cfg().referees)||{};const list=playersArr().filter(p=>isChefId(p.id)).map(p=>p.id);if(!list.length&&!FAM)list.push(CHEF_ID);Object.keys(r).forEach(k=>{if(r[k]&&list.indexOf(k)<0)list.push(k);});return list;}
 function isRefereeFor(p){if(!me)return false;if(p.finderId===me.id)return false;return activeReferees().includes(me.id);}
-function playerName(id){return (room.players&&room.players[id]&&room.players[id].name)||id;}
-function playerColor(id){return (room.players&&room.players[id]&&room.players[id].color)||'#888';}
+function playerName(id){const p=playersArr().find(x=>x.id===id);return p?p.name:id;}
+function playerColor(id){const p=playersArr().find(x=>x.id===id);return (p&&p.color)||'#888';}
 
 function award(pid,pts,gameKey,label,emoji){
   roomRef.child('players/'+pid+'/score').transaction(s=>Math.max(0,(s||0)+pts));
@@ -725,7 +795,7 @@ function approve(key,yes){
   roomRef.child('pending/'+key).once('value',s=>{
     const a=s.val();if(!a)return;
     if(!yes){roomRef.child('pending/'+key).remove();beep(300,0.14);return;}
-    if(me.isChef&&a.finderId!==CHEF_ID){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);return;}
+    if(me.isChef&&!isChefId(a.finderId)){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);return;}
     const approved=a.approved||{};approved[me.id]=true;
     const allOk=(a.needed||[]).every(n=>approved[n]);
     if(allOk){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);}
@@ -768,6 +838,10 @@ function endRoundManual(g){
 
 function renderAll(){
   if(!me)return;
+  const mp=playersArr().find(x=>x.id===me.id);if(mp){me.color=mp.color;me.avatar=mp.avatar||'';me.name=mp.name;}
+  document.getElementById('whoLabel').textContent=(me.avatar?me.avatar+' ':'')+me.name+(me.isChef?' (Chef)':'')+' ✎';
+  if(FAM&&FAM_SETUP&&me.isChef&&roomCode){const pl=room.players||{};const up={};FAM_SETUP.players.forEach((p,i)=>{if(!pl[p.id])up[p.id]={name:p.name,color:p.color,avatar:p.avatar||'',score:0,order:i};});const sk=Object.keys(up).join(',');if(!sk)_syncKey='';else if(room.players&&sk!==_syncKey){_syncKey=sk;R('rooms/'+roomCode+'/players').update(up);}}
+  if(document.getElementById('profil').classList.contains('active'))renderProfil();
   renderBoard();renderApprovals();
   renderGelb();renderJagd();renderSpy();renderRaetsel();renderBingo();renderAuswertung();renderSchiri();renderPunkte();
   // Ziel-Anzeige
@@ -784,7 +858,7 @@ function renderAll(){
 }
 function renderBoard(){
   const arr=playersArr();const max=Math.max.apply(null,arr.map(p=>p.score||0).concat([0]));
-  document.getElementById('board').innerHTML=arr.map(p=>{const lead=(p.score===max&&max>0)?'lead':'';const mine=(p.id===me.id)?'me':'';return '<div class="chip '+lead+' '+mine+'" style="--c:'+p.color+'"><div class="nm">'+esc(p.name)+'</div><div class="sc">'+(p.score||0)+'</div></div>';}).join('');
+  document.getElementById('board').innerHTML=arr.map(p=>{const lead=(p.score===max&&max>0)?'lead':'';const mine=(p.id===me.id)?'me':'';return '<div class="chip '+lead+' '+mine+'" style="--c:'+p.color+'"><div class="nm">'+avn(p)+'</div><div class="sc">'+(p.score||0)+'</div></div>';}).join('');
 }
 function overviewHTML(g){
   if(modeOf(g)!=='runde')return '';
@@ -792,7 +866,7 @@ function overviewHTML(g){
   let extra='';
   if(me.isChef&&roundCfg(g).type==='manual'&&g!=='bingo')extra='<div class="rowbtns"><button class="softbtn dark" onclick="endRoundManual(\''+g+'\')">🏁 Runde beenden</button></div>';
   const sorted=arr.slice().sort((a,b)=>(rs[b.id]||0)-(rs[a.id]||0));
-  return '<div class="modeinfo" style="margin-top:14px">Aktuelle Runde</div>'+sorted.map(p=>'<div class="ovrow" style="--c:'+p.color+'"><span class="on2">'+esc(p.name)+'</span><span class="ow">🏆 '+(rw[p.id]||0)+'</span><span class="ot">'+(rs[p.id]||0)+'</span></div>').join('')+extra;
+  return '<div class="modeinfo" style="margin-top:14px">Aktuelle Runde</div>'+sorted.map(p=>'<div class="ovrow" style="--c:'+p.color+'"><span class="on2">'+avn(p)+'</span><span class="ow">🏆 '+(rw[p.id]||0)+'</span><span class="ot">'+(rs[p.id]||0)+'</span></div>').join('')+extra;
 }
 
 function renderGelb(){
@@ -806,7 +880,7 @@ function renderGelb(){
   }).join('');
   document.getElementById('gelbAddZone').innerHTML=editMode.gelb?'<div class="rowbtns"><button class="softbtn dark" onclick="addItemPrompt(\'gelb\')">＋ Objekt hinzuf&uuml;gen</button></div>':'';
   const t=room.tally||{};
-  document.getElementById('gelbCounts').innerHTML=playersArr().map(p=>'<div class="crow" style="--c:'+p.color+'"><span class="cn2">'+esc(p.name)+'</span><span class="ct">'+((t[p.id]&&t[p.id].gelb)||0)+' Pkt</span></div>').join('');
+  document.getElementById('gelbCounts').innerHTML=playersArr().map(p=>'<div class="crow" style="--c:'+p.color+'"><span class="cn2">'+avn(p)+'</span><span class="ct">'+((t[p.id]&&t[p.id].gelb)||0)+' Pkt</span></div>').join('');
   document.getElementById('gelbOverview').innerHTML=overviewHTML('gelb');
 }
 
@@ -825,6 +899,7 @@ function renderJagd(){
     return '<button class="spot '+(appr?'appr':'')+'" onclick="claimItem(\''+esc(it.label).replace(/'/g,"\\'")+'\','+it.points+',\''+(it.emoji||'')+'\',\'jagd\')"><span class="se">'+it.emoji+'</span><span><span class="sl">'+esc(it.label)+'</span><br><span class="sp">'+it.points+' Pkt'+(appr?' ⭐':'')+'</span></span>'+del+'</button>';
   }).join('')+(editMode.jagd?'<button class="addtile" onclick="addItemPrompt(\'jagd\')">＋ Objekt</button>':'');
   document.getElementById('jagdOverview').innerHTML=overviewHTML('jagd');
+  renderDrive();
 }
 function setRoad(rt){if(!me.isChef)return;roomRef.child('config/roadType').set(rt);}
 
@@ -847,7 +922,7 @@ function renderSpy(){
     chooser.style.display='none';waiting.style.display='block';
     waiting.innerHTML=chosen?'<div class="whoscored">'+esc(playerName(turnId))+' sucht etwas - und das ist:</div><div class="chosencolor" style="background:'+chosen+'"></div>':'<div class="notice"><div class="ne">🤔</div><p>'+esc(playerName(turnId))+' sucht gerade etwas aus…</p></div>';
   }
-  document.getElementById('spyPlayers').innerHTML=arr.map(p=>'<button class="mp" style="--c:'+p.color+'" onclick="scoreSpy(\''+p.id+'\')">'+esc(p.name)+'</button>').join('');
+  document.getElementById('spyPlayers').innerHTML=arr.map(p=>'<button class="mp" style="--c:'+p.color+'" onclick="scoreSpy(\''+p.id+'\')">'+avn(p)+'</button>').join('');
   document.getElementById('spyOverview').innerHTML=overviewHTML('ichsehe');
 }
 function setSpyMode(m){if(!me.isChef){toast('Nur Chef');return;}roomRef.child('spy/mode').set(m);}
@@ -873,7 +948,7 @@ function renderRaetsel(){
   document.getElementById('raetselLevels').innerHTML=[['leicht','🐣 Leicht'],['mittel','🦊 Mittel'],['schwer','🦉 Schwer']].map(x=>'<button class="swbtn '+(lv===x[0]?'on':'')+'" onclick="setLevel(\''+x[0]+'\')">'+x[1]+'</button>').join('');
   modeSwitcher('raetselModes','raetsel');document.getElementById('raetselModeInfo').textContent=modeInfoText('raetsel');
   if(!localRiddle)pickRiddle();
-  document.getElementById('riddlePlayers').innerHTML=playersArr().map(p=>'<button class="mp" style="--c:'+p.color+'" onclick="scoreRiddle(\''+p.id+'\')">'+esc(p.name)+'</button>').join('');
+  document.getElementById('riddlePlayers').innerHTML=playersArr().map(p=>'<button class="mp" style="--c:'+p.color+'" onclick="scoreRiddle(\''+p.id+'\')">'+avn(p)+'</button>').join('');
   const box=document.getElementById('raetselEditList');
   if(editMode.raetsel){
     document.getElementById('raetselPlay').style.display='none';box.style.display='block';
@@ -915,14 +990,14 @@ function tapBingo(id,label){
 function renderAuswertung(){
   const arr=playersArr();const sorted=arr.slice().sort((a,b)=>(b.score||0)-(a.score||0));
   const order=[sorted[1],sorted[0],sorted[2]],cls=['second','first','third'],medal=['🥈','🥇','🥉'];
-  document.getElementById('podium').innerHTML=order.map((p,i)=>p?'<div class="pod '+cls[i]+'" style="--c:'+p.color+'"><div class="medal">'+medal[i]+'</div><div class="pn">'+esc(p.name)+'</div><div class="ps">'+(p.score||0)+'</div></div>':'').join('');
+  document.getElementById('podium').innerHTML=order.map((p,i)=>p?'<div class="pod '+cls[i]+'" style="--c:'+p.color+'"><div class="medal">'+medal[i]+'</div><div class="pn">'+avn(p)+'</div><div class="ps">'+(p.score||0)+'</div></div>':'').join('');
   const top=(sorted[0]&&sorted[0].score)||0;const winners=sorted.filter(p=>(p.score||0)===top&&top>0);
   let b;if(top===0)b='Noch keine Punkte - los! 🚗';else if(winners.length>1)b='Unentschieden! 🤝 '+winners.map(w=>w.name).join(' & ');else b='🎉 '+sorted[0].name+' f&uuml;hrt! 👑';
   document.getElementById('winBanner').innerHTML=b;
   document.getElementById('auswSub').textContent=(room.meta&&room.meta.ziel)?('Fahrt: '+room.meta.ziel):'Gesamtstand, live auf allen Handys.';
   document.getElementById('badgeBox').innerHTML=badgesHTML();
   const t=room.tally||{};
-  document.getElementById('breakdown').innerHTML=sorted.map(p=>{const tt=t[p.id]||{};const parts=GAMES.filter(g=>tt[g]).map(g=>GAME_LABEL[g]+': '+tt[g]).join(' · ')||'noch nichts';return '<div class="ovrow" style="--c:'+p.color+'"><span class="on2">'+esc(p.name)+'<br><span class="ow">'+parts+'</span></span><span class="ot">'+(p.score||0)+'</span></div>';}).join('');
+  document.getElementById('breakdown').innerHTML=sorted.map(p=>{const tt=t[p.id]||{};const parts=GAMES.filter(g=>tt[g]).map(g=>GAME_LABEL[g]+': '+tt[g]).join(' · ')||'noch nichts';return '<div class="ovrow" style="--c:'+p.color+'"><span class="on2">'+avn(p)+'<br><span class="ow">'+parts+'</span></span><span class="ot">'+(p.score||0)+'</span></div>';}).join('');
 }
 function badgesHTML(){
   const t=room.tally||{};const arr=playersArr();
@@ -933,21 +1008,21 @@ function badgesHTML(){
     ['👁️','Detektiv',id=>(t[id]&&t[id].ichsehe)||0],
     ['🎯','Bingo-Meister',id=>(t[id]&&t[id].bingo)||0]
   ];
-  const rows=cats.map(c=>{const w=leader(c[2]);return w?'<div class="badge" style="--c:'+w.color+'"><span class="be">'+c[0]+'</span><span><b>'+c[1]+'</b><br><span class="bp">'+esc(w.name)+'</span></span></div>':'';}).filter(Boolean).join('');
+  const rows=cats.map(c=>{const w=leader(c[2]);return w?'<div class="badge" style="--c:'+w.color+'"><span class="be">'+c[0]+'</span><span><b>'+c[1]+'</b><br><span class="bp">'+avn(w)+'</span></span></div>':'';}).filter(Boolean).join('');
   return rows?('<div class="modeinfo" style="margin-top:16px">Abzeichen dieser Fahrt</div><div class="badges">'+rows+'</div>'):'';
 }
 
 function renderSchiri(){
   if(!me.isChef)return;
-  const refs=(cfg().referees)||{};const kids=playersArr().filter(p=>p.id!==CHEF_ID);
-  document.getElementById('refPanel').innerHTML='<h3>Aktive Schiedsrichter</h3><div class="reftoggle"><span class="rn">'+esc(CHEF_NAME)+'</span><span style="font-size:12px;color:var(--asphalt-soft);font-weight:700">immer 👑</span></div>'+
-    kids.map(k=>'<div class="reftoggle"><span class="rn">'+esc(k.name)+'</span><div class="toggle '+(refs[k.id]?'on':'')+'" onclick="toggleRef(\''+k.id+'\')"></div></div>').join('');
+  const refs=(cfg().referees)||{};const kids=playersArr().filter(p=>!isChefId(p.id));
+  document.getElementById('refPanel').innerHTML='<h3>Aktive Schiedsrichter</h3>'+playersArr().filter(p=>isChefId(p.id)).map(c=>'<div class="reftoggle"><span class="rn">'+avn(c)+'</span><span style="font-size:12px;color:var(--asphalt-soft);font-weight:700">immer 👑</span></div>').join('')+
+    kids.map(k=>'<div class="reftoggle"><span class="rn">'+avn(k)+'</span><div class="toggle '+(refs[k.id]?'on':'')+'" onclick="toggleRef(\''+k.id+'\')"></div></div>').join('');
 }
 function toggleRef(id){if(!me.isChef)return;const refs=(cfg().referees)||{};roomRef.child('config/referees/'+id).set(!refs[id]);}
 
 function renderPunkte(){
   if(!me.isChef)return;
-  document.getElementById('punkteList').innerHTML=playersArr().map(p=>'<div class="punkterow" style="--c:'+p.color+'"><span class="pn3">'+esc(p.name)+'</span><button onclick="adjustScore(\''+p.id+'\',-5)">-5</button><button onclick="adjustScore(\''+p.id+'\',-1)">-1</button><span class="psc">'+(p.score||0)+'</span><button onclick="adjustScore(\''+p.id+'\',1)">+1</button><button onclick="adjustScore(\''+p.id+'\',5)">+5</button><button onclick="setScore(\''+p.id+'\')">=</button></div>').join('');
+  document.getElementById('punkteList').innerHTML=playersArr().map(p=>'<div class="punkterow" style="--c:'+p.color+'"><span class="pn3">'+avn(p)+'</span><button onclick="adjustScore(\''+p.id+'\',-5)">-5</button><button onclick="adjustScore(\''+p.id+'\',-1)">-1</button><span class="psc">'+(p.score||0)+'</span><button onclick="adjustScore(\''+p.id+'\',1)">+1</button><button onclick="adjustScore(\''+p.id+'\',5)">+5</button><button onclick="setScore(\''+p.id+'\')">=</button></div>').join('');
 }
 function adjustScore(pid,d){roomRef.child('players/'+pid+'/score').transaction(s=>Math.max(0,(s||0)+d));}
 function setScore(pid){const v=parseInt(prompt('Punkte f&uuml;r '+playerName(pid)+' setzen:',String((room.players[pid]&&room.players[pid].score)||0)),10);if(isNaN(v))return;roomRef.child('players/'+pid+'/score').set(Math.max(0,v));}
@@ -1015,7 +1090,7 @@ function loadFamilien(){
       const i=v[k];const open=i.status==='open';
       return '<div class="notice" style="text-align:left;margin-bottom:10px"><b>'+esc(i.label||k)+'</b> &middot; '+(open?'⏳ wartet auf Einrichtung':'✅ eingerichtet')+
         (open?'<div style="font-size:12px;word-break:break-all;margin:8px 0;color:var(--asphalt-soft)">'+esc(famLink(k))+'</div><div class="rowbtns"><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Teilen</button><button class="softbtn" onclick="copyFam(\''+k+'\')">📋 Kopieren</button><button class="softbtn warn" onclick="delInvite(\''+k+'\')">🗑️</button></div>'
-        :'<div class="rowbtns" style="margin-top:8px"><button class="softbtn" onclick="famResetPin(\''+k+'\')">🔑 Neue PIN</button><button class="softbtn" onclick="famEditNames(\''+k+'\')">✎ Namen</button><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Link</button><button class="softbtn warn" onclick="famDelete(\''+k+'\')">🗑️ Löschen</button></div>')+'</div>';
+        :'<div class="rowbtns" style="margin-top:8px"><button class="softbtn" onclick="famResetPin(\''+k+'\')">🔑 Neue PIN</button><button class="softbtn" onclick="openFamEdit(\''+k+'\')">✎ Bearbeiten</button><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Link</button><button class="softbtn warn" onclick="famDelete(\''+k+'\')">🗑️ Löschen</button></div>')+'</div>';
     }).join('');
   });
 }
@@ -1031,32 +1106,124 @@ function famResetPin(k){
   const salt=Math.random().toString(36).slice(2,10);
   hashPin(pin,salt).then(h=>{db.ref('fam/'+k+'/setup').update({salt,pinHash:h}).then(()=>toast('Neue PIN gespeichert ✓'));});
 }
-function famEditNames(k){
-  if(!me||!me.isChef||FAM)return;
-  db.ref('fam/'+k+'/setup').once('value',s=>{
-    const st=s.val();if(!st||!st.players)return;
-    const pl=st.players.map(p=>Object.assign({},p));
-    for(const p of pl){
-      const n=prompt('Name ('+(p.chef?'Vater':'Kind')+'), leer lassen = behalten:',p.name);
-      if(n===null)return;
-      if(n.trim())p.name=n.trim().slice(0,12);
-    }
-    const chef=pl.find(p=>p.chef);
-    db.ref('fam/'+k+'/setup').update({players:pl,chef:{id:chef.id,name:chef.name}});
-    db.ref('fam/'+k+'/rooms').once('value',rs=>{
-      const rooms=rs.val()||{};const up={};
-      Object.keys(rooms).forEach(r=>{const rp=(rooms[r]&&rooms[r].players)||{};pl.forEach(p=>{if(rp[p.id])up['rooms/'+r+'/players/'+p.id+'/name']=p.name;});});
-      if(Object.keys(up).length)db.ref('fam/'+k).update(up);
-      toast('Namen gespeichert ✓');
-    });
-  });
-}
 function famDelete(k){
   if(!me||!me.isChef||FAM)return;
   if(!confirm('Diese Familie mit ALLEN Fahrten und Punkten endg\u00fcltig l\u00f6schen?'))return;
   if(!confirm('Wirklich l\u00f6schen? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden.'))return;
   db.ref('fam/'+k).remove();db.ref('invites/'+k).remove();toast('Familie gel\u00f6scht');
 }
+
+// ===== Editor (Ersteinrichtung & Familie bearbeiten) =====
+let ED=null, FE_CODE=null;
+function newId(){return 'k'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);}
+function edUnused(list,key){return list.find(x=>!ED.people.some(p=>p[key]===x))||list[0];}
+function edInit(people,cid){ED={people:people.map(p=>Object.assign({},p)),cid};}
+function initSetup(){
+  edInit([
+    {id:'papa',name:'',role:'vater',chef:true,color:COLORS[0],avatar:AVATARS[0]},
+    {id:newId(),name:'',role:'kind',chef:false,color:COLORS[1],avatar:AVATARS[1]},
+    {id:newId(),name:'',role:'kind',chef:false,color:COLORS[2],avatar:AVATARS[2]}],'fsEditor');
+  edRender();
+}
+function edAdd(role){
+  const p={id:role==='vater'?'papa':role==='mutter'?'mama':newId(),name:'',role,chef:role!=='kind',color:edUnused(COLORS,'color'),avatar:edUnused(AVATARS,'avatar')};
+  ED.people.push(p);edRender();
+}
+function edDel(i){ED.people.splice(i,1);edRender();}
+function edSet(i,k,v){ED.people[i][k]=v;edRender();}
+function edRender(){
+  const el=document.getElementById(ED.cid);if(!el)return;
+  const P=ED.people;const parents=P.filter(p=>p.role!=='kind'),kids=P.filter(p=>p.role==='kind');
+  const card=p=>{
+    const i=P.indexOf(p);const canDel=p.role==='kind'?kids.length>1:parents.length>1;
+    return '<div class="pcard" style="--c:'+p.color+'"><div class="phead"><span class="pav">'+(p.avatar||'🙂')+'</span><b>'+ROLE[p.role]+'</b>'+(canDel?'<button class="pdel" onclick="edDel('+i+')">✕</button>':'')+'</div>'+
+      '<input class="pname" maxlength="12" placeholder="Name" value="'+esc(p.name)+'" oninput="ED.people['+i+'].name=this.value" autocomplete="off">'+
+      '<div class="swatches">'+COLORS.map(c=>'<button class="sw'+(c===p.color?' on':'')+'" style="background:'+c+'" onclick="edSet('+i+',\'color\',\''+c+'\')"></button>').join('')+'</div>'+
+      '<div class="avs">'+AVATARS.map(a=>'<button class="av'+(a===p.avatar?' on':'')+'" onclick="edSet('+i+',\'avatar\',\''+a+'\')">'+a+'</button>').join('')+'</div></div>';};
+  const addP=parents.length<2?['vater','mutter'].filter(r=>!parents.some(p=>p.role===r)).map(r=>'<button class="miniadd" onclick="edAdd(\''+r+'\')">➕ '+ROLE[r].replace(' 👑','')+' hinzuf&uuml;gen</button>').join(''):'';
+  el.innerHTML='<div class="edsec">Eltern</div>'+parents.map(card).join('')+addP+'<div class="edsec">Kinder</div>'+kids.map(card).join('')+(kids.length<6?'<button class="miniadd" onclick="edAdd(\'kind\')">➕ Kind hinzuf&uuml;gen</button>':'');
+}
+function edCollect(errEl){
+  const P=ED.people;
+  if(P.some(p=>!(p.name||'').trim())){errEl.textContent='Bitte f\u00fcr jede Person einen Namen eintragen.';return null;}
+  const order={vater:0,mutter:1,kind:2};
+  const sorted=P.map((p,i)=>({p,i})).sort((a,b)=>(order[a.p.role]-order[b.p.role])||(a.i-b.i)).map(x=>x.p);
+  errEl.textContent='';
+  return sorted.map((p,i)=>({id:p.id,name:p.name.trim().slice(0,12),role:p.role,chef:p.role!=='kind',color:p.color,avatar:p.avatar||'',order:i}));
+}
+function openFamEdit(code){
+  if(!me||!me.isChef)return;
+  if(FAM&&code!==FAM)return;
+  db.ref('fam/'+code+'/setup').once('value',s=>{
+    const st=s.val();if(!st||!st.players)return;
+    FE_CODE=code;
+    edInit(arr(st.players).map(p=>Object.assign({},p,{role:p.role||(p.chef?'vater':'kind'),avatar:p.avatar||''})),'feBody');
+    document.getElementById('fePin').value='';document.getElementById('feErr').textContent='';
+    go('familieEdit');edRender();
+  });
+}
+function feSave(){
+  const err=document.getElementById('feErr');
+  const players=edCollect(err);if(!players)return;
+  if(!players.some(p=>p.chef)){err.textContent='Mindestens ein Elternteil muss bleiben.';return;}
+  const pinV=(document.getElementById('fePin').value||'').trim();
+  if(pinV&&!/^[0-9]{4,8}$/.test(pinV)){err.textContent='PIN: 4 bis 8 Ziffern.';return;}
+  const code=FE_CODE;
+  db.ref('fam/'+code+'/setup').once('value',async s=>{
+    const st=s.val()||{};
+    const removed=arr(st.removed).filter(id=>!players.some(p=>p.id===id));
+    arr(st.players).forEach(p=>{if(!players.some(x=>x.id===p.id)&&removed.indexOf(p.id)<0)removed.push(p.id);});
+    const up={players,removed};
+    if(pinV){const salt=Math.random().toString(36).slice(2,10);up.salt=salt;up.pinHash=await hashPin(pinV,salt);}
+    db.ref('fam/'+code+'/setup').update(up).then(()=>{document.getElementById('fePin').value='';err.textContent='';toast('Gespeichert ✓');});
+  });
+}
+
+// ===== Eigenes Profil =====
+function openProfil(){if(!me)return;go('profil');renderProfil();}
+function renderProfil(){
+  const el=document.getElementById('profBody');if(!el||!me)return;
+  el.style.setProperty('--c',me.color||'#ccc');
+  el.innerHTML='<div class="phead"><span class="pav">'+(me.avatar||'🙂')+'</span><b>'+esc(me.name)+'</b></div>'+
+    (me.isChef?'<input class="pname" id="profName" maxlength="12" value="'+esc(me.name)+'" onchange="profName(this.value)" autocomplete="off"><div class="hint" style="margin:-4px 0 10px;text-align:left">Name &auml;ndern: eintippen und best&auml;tigen.</div>':'')+
+    '<div class="swatches">'+COLORS.map(c=>'<button class="sw'+(c===me.color?' on':'')+'" style="background:'+c+'" onclick="profSet(\'color\',\''+c+'\')"></button>').join('')+'</div>'+
+    '<div class="avs">'+AVATARS.map(a=>'<button class="av'+(a===me.avatar?' on':'')+'" onclick="profSet(\'avatar\',\''+a+'\')">'+a+'</button>').join('')+'</div>';
+}
+function profName(v){
+  v=(v||'').trim().slice(0,12);if(!v||!me||!me.isChef)return;
+  me.name=v;
+  if(FAM&&PROF[me.id]){const idx=FAM_SETUP.players.findIndex(p=>p.id===me.id);if(idx>=0)R('setup/players/'+idx).update({name:v});}
+  else if(!FAM){R('profiles/'+me.id).update({name:v});}
+  else{roomRef.child('players/'+me.id).update({name:v});}
+  toast('Name ge\u00e4ndert ✓');
+}
+function profSet(k,v){
+  me[k]=v;
+  if(FAM&&PROF[me.id]){const idx=FAM_SETUP.players.findIndex(p=>p.id===me.id);if(idx>=0)R('setup/players/'+idx).update({[k]:v});}
+  else if(!FAM){R('profiles/'+me.id).update({[k]:v});}
+  else{roomRef.child('players/'+me.id).update({[k]:v});}
+  renderProfil();
+}
+
+// ===== Fahrmodus =====
+let driveOn=false,driveSig='',wakeLock=null;
+function openDrive(){driveOn=true;driveSig='';document.getElementById('driveMode').classList.add('on');renderDrive(true);try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(w=>{wakeLock=w;}).catch(()=>{});}catch(e){}}
+function closeDrive(){driveOn=false;document.getElementById('driveMode').classList.remove('on');try{if(wakeLock){wakeLock.release();wakeLock=null;}}catch(e){}}
+function renderDrive(force){
+  if(!driveOn)return;
+  const rt=(cfg().roadType)||'autobahn';const items=((content().jagd||{})[rt])||[];
+  const sig=rt+'|'+items.map(i=>i.id+'~'+i.emoji+'~'+i.points).join(',');
+  if(sig===driveSig&&!force)return;driveSig=sig;
+  const n=items.length;const cols=n<=1?1:(n<=4?2:(n<=9?3:4));const rows=Math.max(1,Math.ceil(n/cols));
+  const g=document.getElementById('driveGrid');
+  g.style.gridTemplateColumns='repeat('+cols+',1fr)';g.style.gridTemplateRows='repeat('+rows+',1fr)';
+  const W=g.clientWidth||window.innerWidth,H=g.clientHeight||window.innerHeight;
+  const fs=Math.max(24,Math.floor(Math.min(W/cols,H/rows)*0.58));
+  g.innerHTML=items.map(it=>{const col=it.points>=10?'#8E44AD':(it.points>=APPROVAL_MIN?'#FB8C00':'#2FB37A');return '<button class="dtile" style="--t:'+col+';font-size:'+fs+'px" onclick="driveTap(this,\''+esc(it.label).replace(/'/g,"\\'")+'\','+it.points+',\''+(it.emoji||'')+'\')">'+(it.emoji||'⭐')+'</button>';}).join('');
+  document.getElementById('driveRoad').textContent=({autobahn:'🛣️',land:'🌾',stadt:'🏙️'})[rt]||'';
+}
+function driveTap(el,label,points,emoji){claimItem(label,points,emoji,'jagd');el.classList.add('ok');setTimeout(()=>el.classList.remove('ok'),450);}
+window.addEventListener('resize',()=>renderDrive(true));
 
 boot();
 </script>
