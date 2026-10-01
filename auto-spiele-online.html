@@ -41,6 +41,10 @@
   .roomlist{display:flex;flex-direction:column;gap:10px;margin-bottom:8px;max-height:46vh;overflow-y:auto;}
   .roomitem{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:13px;box-shadow:var(--schatten);font-weight:800;transition:transform .06s;text-align:left;}
   .roomitem:active{transform:translateY(2px);}
+  .ach{display:inline-flex;align-items:center;gap:4px;background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:800;box-shadow:var(--schatten);margin:3px 3px 3px 0;} .ach.lock{opacity:.35;filter:grayscale(1);}
+  .stline{font-size:13px;font-weight:700;color:var(--asphalt-soft);margin:2px 0 8px;}
+  .awcard{display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;padding:10px 12px;box-shadow:var(--schatten);margin-bottom:8px;}
+  .awcard .ae{font-size:28px;} .awcard b{font-size:14px;} .awcard .as{font-size:12px;color:var(--asphalt-soft);font-weight:700;}
   .roomrow{display:flex;gap:6px;align-items:stretch;} .roomrow .roomitem{flex:1;}
   .rmini{width:46px;border-radius:14px;background:#fff;box-shadow:var(--schatten);font-size:18px;}
   .roomitem .rc{flex:1;font-size:16px;line-height:1.25;} .roomitem .rp{font-size:12px;color:var(--asphalt-soft);font-weight:700;}
@@ -302,6 +306,7 @@ const APPROVAL_MIN = 5;
         <button class="card wide" style="--ac:var(--asphalt)" onclick="go('auswertung')"><div class="ic">🏆</div><div class="txt"><div class="cn">Siegerehrung</div><div class="cd">Podest & Abzeichen.</div></div></button>
       </div>
       <div class="rowbtns">
+        <button class="softbtn" onclick="openStats()">📊 Statistik</button>
         <button class="softbtn" id="refBtn" onclick="go('schiri')" style="display:none">⚖️ Schiedsrichter</button>
         <button class="softbtn" id="punkteBtn" onclick="go('punkte')" style="display:none">✎ Punkte</button>
         <button class="softbtn warn" id="resetBtn" onclick="resetAll()" style="display:none">🔄 Neue Runde</button>
@@ -386,6 +391,13 @@ const APPROVAL_MIN = 5;
       <div class="field"><label>Name zur Erinnerung (nur f&uuml;r dich)</label><input id="famLabel" maxlength="24" placeholder="z.B. Lauterborn" autocomplete="off"></div>
       <button class="miniadd" onclick="createInvite()">🔗 Neuen Link erzeugen</button>
       <div id="famList" style="margin-top:16px"></div>
+      <div id="myFam" style="margin-top:20px"></div>
+      <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
+    </section>
+
+    <section class="screen" id="stats">
+      <h2 class="title">📊 Familien-Statistik</h2>
+      <div id="statsBody"><div class="hint">Lade&hellip;</div></div>
       <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
     </section>
 
@@ -646,7 +658,7 @@ async function hashPin(pin,salt){
 function famErr(m){const e=document.getElementById('famErr');e.textContent=m;}
 async function doFamSetup(){
   const pin=(document.getElementById('fsPin').value||'').trim();
-  const players=edCollect(document.getElementById('famErr'));if(!players)return;
+  const players=await edCollect(document.getElementById('famErr'));if(!players)return;
   if(!/^[0-9]{4,8}$/.test(pin)){famErr('Die PIN braucht 4 bis 8 Ziffern.');return;}
   const salt=Math.random().toString(36).slice(2,10);
   const data={done:true,created:Date.now(),salt,pinHash:await hashPin(pin,salt),players,removed:[]};
@@ -700,18 +712,21 @@ function renderPick(pl){
   const savedId=lsGet(LSP+joinCode);
   document.getElementById('nameBtns').innerHTML=arr.map(p=>{
     const chef=isChefId(p.id);
-    return '<button class="namebtn '+(p.id===savedId?'sel':'')+'" style="--c:'+p.color+'" onclick="pickName(\''+p.id+'\',\''+esc(p.name)+'\',\''+p.color+'\','+(chef?1:0)+')">'+avn(p)+(chef?'<span class="tag">Chef 👑</span>':'')+'</button>';
+    return '<button class="namebtn '+(p.id===savedId?'sel':'')+'" style="--c:'+p.color+'" onclick="pickName(\''+p.id+'\',\''+esc(p.name)+'\',\''+p.color+'\','+(chef?1:0)+')">'+avn(p)+(chef?'<span class="tag">Chef 👑</span>':((PROF[p.id]&&PROF[p.id].pinHash)?'<span class="tag">🔒</span>':''))+'</button>';
   }).join('');
 }
 function pickName(id,name,color,chef){
   initAudio();
-  if(chef){document.getElementById('pinFor').textContent=name;pendingPick={id,name,color,chef:true};document.getElementById('pickView').style.display='none';document.getElementById('pinView').style.display='block';document.getElementById('pin').value='';document.getElementById('pin').focus();return;}
+  const kidPin=!chef&&PROF[id]&&PROF[id].pinHash;
+  if(chef||kidPin){document.getElementById('pinFor').textContent=name;pendingPick={id,name,color,chef:!!chef,kid:!!kidPin};document.getElementById('pickView').style.display='none';document.getElementById('pinView').style.display='block';document.getElementById('pin').value='';document.getElementById('pinHint').innerHTML='<a href="#" onclick="backToPick();return false;">zur&uuml;ck</a>';document.getElementById('pin').focus();return;}
   me={id,name,color,isChef:false};finishJoin();
 }
 async function checkPin(){
   const v=document.getElementById('pin').value;
-  const ok=FAM?((await hashPin(v,FAM_SETUP.salt))===FAM_SETUP.pinHash):(v===ADMIN_PIN);
-  if(ok){me=Object.assign({},pendingPick,{isChef:true});finishJoin();}
+  let ok;
+  if(pendingPick&&pendingPick.kid){const f=PROF[pendingPick.id]||{};ok=(await hashPin(v,f.pinSalt||''))===f.pinHash;}
+  else ok=FAM?((await hashPin(v,FAM_SETUP.salt))===FAM_SETUP.pinHash):(v===ADMIN_PIN);
+  if(ok){me=Object.assign({},pendingPick,{isChef:!(pendingPick&&pendingPick.kid)});finishJoin();}
   else{document.getElementById('pinHint').innerHTML='Falsche PIN. <a href="#" onclick="backToPick();return false;">zur&uuml;ck</a>';beep(300,0.15);}
 }
 function backToPick(){['pinView','addView'].forEach(v=>document.getElementById(v).style.display='none');document.getElementById('pickView').style.display='block';}
@@ -842,6 +857,7 @@ function renderAll(){
   document.getElementById('whoLabel').textContent=(me.avatar?me.avatar+' ':'')+me.name+(me.isChef?' (Chef)':'')+' ✎';
   if(FAM&&FAM_SETUP&&me.isChef&&roomCode){const pl=room.players||{};const up={};FAM_SETUP.players.forEach((p,i)=>{if(!pl[p.id])up[p.id]={name:p.name,color:p.color,avatar:p.avatar||'',score:0,order:i};});const sk=Object.keys(up).join(',');if(!sk)_syncKey='';else if(room.players&&sk!==_syncKey){_syncKey=sk;R('rooms/'+roomCode+'/players').update(up);}}
   if(document.getElementById('profil').classList.contains('active'))renderProfil();
+  if(document.getElementById('familien').classList.contains('active'))renderMyFam();
   renderBoard();renderApprovals();
   renderGelb();renderJagd();renderSpy();renderRaetsel();renderBingo();renderAuswertung();renderSchiri();renderPunkte();
   // Ziel-Anzeige
@@ -995,7 +1011,7 @@ function renderAuswertung(){
   let b;if(top===0)b='Noch keine Punkte - los! 🚗';else if(winners.length>1)b='Unentschieden! 🤝 '+winners.map(w=>w.name).join(' & ');else b='🎉 '+sorted[0].name+' f&uuml;hrt! 👑';
   document.getElementById('winBanner').innerHTML=b;
   document.getElementById('auswSub').textContent=(room.meta&&room.meta.ziel)?('Fahrt: '+room.meta.ziel):'Gesamtstand, live auf allen Handys.';
-  document.getElementById('badgeBox').innerHTML=badgesHTML();
+  document.getElementById('badgeBox').innerHTML=badgesHTML()+nicknamesHTML();
   const t=room.tally||{};
   document.getElementById('breakdown').innerHTML=sorted.map(p=>{const tt=t[p.id]||{};const parts=GAMES.filter(g=>tt[g]).map(g=>GAME_LABEL[g]+': '+tt[g]).join(' · ')||'noch nichts';return '<div class="ovrow" style="--c:'+p.color+'"><span class="on2">'+avn(p)+'<br><span class="ow">'+parts+'</span></span><span class="ot">'+(p.score||0)+'</span></div>';}).join('');
 }
@@ -1056,6 +1072,7 @@ function resetAll(){
 
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo({top:0,behavior:'instant'});
   if(id==='familien')loadFamilien();
+  if(id==='stats')loadStats();
   if(id==='auswertung'){const arr=playersArr();const top=Math.max.apply(null,arr.map(p=>p.score||0).concat([0]));const stamp=roomCode+':'+top;if(top>0&&stamp!==_confettiShownFor){_confettiShownFor=stamp;confetti();fanfare();}}
 }
 function showNotif(v){
@@ -1078,7 +1095,21 @@ function createInvite(){
   document.getElementById('famLabel').value='';
   toast('Link erzeugt ✓');
 }
+function renderMyFam(){
+  const el=document.getElementById('myFam');if(!el||FAM||!me||!me.isChef)return;
+  const kids=playersArr().filter(p=>!isChefId(p.id));
+  el.innerHTML='<div class="edsec">Meine Familie &middot; Kinder-PINs</div>'+kids.map(k=>{const has=PROF[k.id]&&PROF[k.id].pinHash;return '<div class="reftoggle"><span class="rn">'+avn(k)+'</span><span style="display:flex;gap:6px"><button class="softbtn" style="min-width:0;padding:8px 12px" onclick="kidPin(\''+k.id+'\')">'+(has?'🔒 &auml;ndern':'🔓 PIN setzen')+'</button>'+(has?'<button class="softbtn warn" style="min-width:0;padding:8px 12px" onclick="kidPinClear(\''+k.id+'\')">✕</button>':'')+'</span></div>';}).join('');
+}
+function kidPin(id){
+  if(!me||!me.isChef||FAM)return;
+  const pin=(prompt('PIN f\u00fcr '+playerName(id)+' (4\u20138 Ziffern):')||'').trim();if(!pin)return;
+  if(!/^[0-9]{4,8}$/.test(pin)){toast('PIN: 4 bis 8 Ziffern');return;}
+  const salt=Math.random().toString(36).slice(2,10);
+  hashPin(pin,salt).then(h=>R('profiles/'+id).update({pinSalt:salt,pinHash:h}).then(()=>toast('PIN gespeichert ✓')));
+}
+function kidPinClear(id){if(!me||!me.isChef||FAM)return;R('profiles/'+id+'/pinHash').remove();R('profiles/'+id+'/pinSalt').remove();toast('PIN entfernt');}
 function loadFamilien(){
+  renderMyFam();
   if(FAM||!db)return;
   db.ref('invites').off();
   db.ref('invites').on('value',s=>{
@@ -1129,6 +1160,7 @@ function edAdd(role){
   const p={id:role==='vater'?'papa':role==='mutter'?'mama':newId(),name:'',role,chef:role!=='kind',color:edUnused(COLORS,'color'),avatar:edUnused(AVATARS,'avatar')};
   ED.people.push(p);edRender();
 }
+function edClearPin(i){ED.people[i].clearPin=true;ED.people[i].newPin='';edRender();}
 function edDel(i){ED.people.splice(i,1);edRender();}
 function edSet(i,k,v){ED.people[i][k]=v;edRender();}
 function edRender(){
@@ -1138,18 +1170,32 @@ function edRender(){
     const i=P.indexOf(p);const canDel=p.role==='kind'?kids.length>1:parents.length>1;
     return '<div class="pcard" style="--c:'+p.color+'"><div class="phead"><span class="pav">'+(p.avatar||'🙂')+'</span><b>'+ROLE[p.role]+'</b>'+(canDel?'<button class="pdel" onclick="edDel('+i+')">✕</button>':'')+'</div>'+
       '<input class="pname" maxlength="12" placeholder="Name" value="'+esc(p.name)+'" oninput="ED.people['+i+'].name=this.value" autocomplete="off">'+
+      (p.role==='kind'?'<div class="hint" style="text-align:left;margin:0 0 4px">'+(p.pinHash&&!p.clearPin?'🔒 PIN gesetzt &middot; <a href="#" onclick="edClearPin('+i+');return false;">entfernen</a>':(p.clearPin?'PIN wird beim Speichern entfernt':'Kinder-PIN (optional)'))+'</div><input class="pname" inputmode="numeric" maxlength="8" placeholder="'+(p.pinHash&&!p.clearPin?'neue PIN (leer = behalten)':'PIN, z.B. 1234 (leer = keine)')+'" value="'+esc(p.newPin||'')+'" oninput="ED.people['+i+'].newPin=this.value" autocomplete="off">':'')+
       '<div class="swatches">'+COLORS.map(c=>'<button class="sw'+(c===p.color?' on':'')+'" style="background:'+c+'" onclick="edSet('+i+',\'color\',\''+c+'\')"></button>').join('')+'</div>'+
       '<div class="avs">'+AVATARS.map(a=>'<button class="av'+(a===p.avatar?' on':'')+'" onclick="edSet('+i+',\'avatar\',\''+a+'\')">'+a+'</button>').join('')+'</div></div>';};
   const addP=parents.length<2?['vater','mutter'].filter(r=>!parents.some(p=>p.role===r)).map(r=>'<button class="miniadd" onclick="edAdd(\''+r+'\')">➕ '+ROLE[r].replace(' 👑','')+' hinzuf&uuml;gen</button>').join(''):'';
   el.innerHTML='<div class="edsec">Eltern</div>'+parents.map(card).join('')+addP+'<div class="edsec">Kinder</div>'+kids.map(card).join('')+(kids.length<6?'<button class="miniadd" onclick="edAdd(\'kind\')">➕ Kind hinzuf&uuml;gen</button>':'');
 }
-function edCollect(errEl){
+async function edCollect(errEl){
   const P=ED.people;
   if(P.some(p=>!(p.name||'').trim())){errEl.textContent='Bitte f\u00fcr jede Person einen Namen eintragen.';return null;}
   const order={vater:0,mutter:1,kind:2};
   const sorted=P.map((p,i)=>({p,i})).sort((a,b)=>(order[a.p.role]-order[b.p.role])||(a.i-b.i)).map(x=>x.p);
   errEl.textContent='';
-  return sorted.map((p,i)=>({id:p.id,name:p.name.trim().slice(0,12),role:p.role,chef:p.role!=='kind',color:p.color,avatar:p.avatar||'',order:i}));
+  const out=[];
+  for(let i=0;i<sorted.length;i++){
+    const p=sorted[i];
+    const o={id:p.id,name:p.name.trim().slice(0,12),role:p.role,chef:p.role!=='kind',color:p.color,avatar:p.avatar||'',order:i};
+    if(p.role==='kind'){
+      const np=(p.newPin||'').trim();
+      if(np){
+        if(!/^[0-9]{4,8}$/.test(np)){errEl.textContent='Kinder-PIN: 4 bis 8 Ziffern.';return null;}
+        const salt=Math.random().toString(36).slice(2,10);o.pinSalt=salt;o.pinHash=await hashPin(np,salt);
+      }else if(p.pinHash&&!p.clearPin){o.pinSalt=p.pinSalt||'';o.pinHash=p.pinHash;}
+    }
+    out.push(o);
+  }
+  return out;
 }
 function openFamEdit(code){
   if(!me||!me.isChef)return;
@@ -1162,9 +1208,9 @@ function openFamEdit(code){
     go('familieEdit');edRender();
   });
 }
-function feSave(){
+async function feSave(){
   const err=document.getElementById('feErr');
-  const players=edCollect(err);if(!players)return;
+  const players=await edCollect(err);if(!players)return;
   if(!players.some(p=>p.chef)){err.textContent='Mindestens ein Elternteil muss bleiben.';return;}
   const pinV=(document.getElementById('fePin').value||'').trim();
   if(pinV&&!/^[0-9]{4,8}$/.test(pinV)){err.textContent='PIN: 4 bis 8 Ziffern.';return;}
@@ -1224,6 +1270,100 @@ function renderDrive(force){
 }
 function driveTap(el,label,points,emoji){claimItem(label,points,emoji,'jagd');el.classList.add('ok');setTimeout(()=>el.classList.remove('ok'),450);}
 window.addEventListener('resize',()=>renderDrive(true));
+
+// ===== Spitznamen & Statistik =====
+const CATS=[
+ {k:'spaeh',e:'🦅',t:'Späh-Adler',nick:'Der Adlerblick',f:t=>(t.gelb||0)+(t.jagd||0)},
+ {k:'raetsel',e:'🧠',t:'Rätsel-König',nick:'Professor Rätselhaft',f:t=>t.raetsel||0},
+ {k:'ichsehe',e:'👁️',t:'Detektiv',nick:'Sherlock',f:t=>t.ichsehe||0},
+ {k:'bingo',e:'🎯',t:'Bingo-Meister',nick:'Bingo-Boss',f:t=>t.bingo||0}];
+function tripNick(id,tally){const t=(tally&&tally[id])||{};let best=null,bv=0;CATS.forEach(c=>{const v=c.f(t);if(v>bv){bv=v;best=c;}});return best?{e:best.e,n:best.nick}:{e:'😴',n:'Gemütlicher Beifahrer'};}
+function nicknamesHTML(){
+  const arr=playersArr();if(!arr.length)return '';
+  return '<div class="modeinfo" style="margin-top:16px">Spitznamen dieser Fahrt</div><div class="badges">'+arr.map(p=>{const n=tripNick(p.id,room.tally||{});return '<div class="badge" style="--c:'+p.color+'"><span class="be">'+n.e+'</span><span><b>'+esc(n.n)+'</b><br><span class="bp">'+avn(p)+'</span></span></div>';}).join('')+'</div>';
+}
+function openStats(){go('stats');}
+function loadStats(){
+  const el=document.getElementById('statsBody');el.innerHTML='<div class="hint">Lade&hellip;</div>';
+  computeStats().then(st=>{el.innerHTML=statsHTML(st);}).catch(()=>{el.innerHTML='<div class="hint">Statistik konnte nicht geladen werden.</div>';});
+}
+async function computeStats(){
+  const keys=Object.keys(LAST_LOB||{});
+  const once=p=>new Promise(r=>R(p).once('value',s=>r(s.val())));
+  const data=await Promise.all(keys.map(async k=>({k,L:LAST_LOB[k]||{},pl:(await once('rooms/'+k+'/players'))||{},ta:(await once('rooms/'+k+'/tally'))||{},fe:(await once('rooms/'+k+'/feed'))||{}})));
+  data.sort((a,b)=>(a.L.date||0)-(b.L.date||0));
+  const P={};const trips=[];const ziele={};let finds=0,totalPts=0;
+  const person=(id,name)=>P[id]||(P[id]={id,name:name||id,color:'#888',avatar:'',wins:0,pts:0,trips:0,finds:0,night:0,late:0,best:{score:0,trip:''},fav:{},rare:null,streak:0,maxStreak:0,cats:{},gelb:0,raetsel:0,ichsehe:0,bingo:0});
+  data.forEach(d=>{
+    const pls=mergePlayers(d.pl);if(!pls.length)return;
+    const ziel=(d.L.ziel||d.k).trim();
+    const top=Math.max.apply(null,pls.map(p=>p.score||0).concat([0]));
+    const winners=top>0?pls.filter(p=>(p.score||0)===top):[];
+    pls.forEach(p=>{
+      const q=person(p.id,p.name);q.name=p.name;q.color=p.color||q.color;q.avatar=p.avatar||q.avatar;
+      const t=d.ta[p.id]||{};const part=(p.score||0)>0||Object.keys(t).length>0;
+      if(part){q.trips++;q.pts+=(p.score||0);totalPts+=(p.score||0);if((p.score||0)>q.best.score)q.best={score:p.score||0,trip:ziel};}
+      const win=winners.some(w=>w.id===p.id);
+      if(win){q.wins++;q.streak++;if(q.streak>q.maxStreak)q.maxStreak=q.streak;}else if(part)q.streak=0;
+      q.gelb+=t.gelb||0;q.raetsel+=t.raetsel||0;q.ichsehe+=t.ichsehe||0;q.bingo+=t.bingo||0;
+    });
+    CATS.forEach(c=>{let best=null,bv=0;pls.forEach(p=>{const v=c.f(d.ta[p.id]||{});if(v>bv){bv=v;best=p;}});if(best){const q=P[best.id];q.cats[c.k]=(q.cats[c.k]||0)+1;}});
+    const fe=Object.keys(d.fe).map(k=>d.fe[k]).filter(e=>e&&e.finderId&&e.finderId!=='_'&&(e.points||0)>0);
+    let tmin=Infinity,tmax=0;fe.forEach(e=>{if(e.ts){tmin=Math.min(tmin,e.ts);tmax=Math.max(tmax,e.ts);}});
+    const lateFrom=(tmax-tmin>600000)?tmin+0.75*(tmax-tmin):Infinity;
+    fe.forEach(e=>{
+      const q=person(e.finderId,e.name);q.finds++;finds++;
+      const lab=(e.emoji||'')+' '+(e.label||'');q.fav[lab]=(q.fav[lab]||0)+1;
+      if(!q.rare||e.points>q.rare.points)q.rare={points:e.points,label:e.label||'',emoji:e.emoji||'⭐',trip:ziel};
+      if(e.ts){const h=new Date(e.ts).getHours();if(h>=20||h<5)q.night+=e.points;if(e.ts>=lateFrom)q.late+=e.points;}
+    });
+    const key=ziel.toLowerCase();ziele[key]=ziele[key]||{n:0,label:ziel};ziele[key].n++;
+    const w0=winners[0];
+    trips.push({k:d.k,ziel,date:d.L.date||0,winners:winners.map(w=>w.name),topScore:top,nick:w0?tripNick(w0.id,d.ta):null,avatar:w0?(w0.avatar||''):''});
+  });
+  const list=Object.keys(P).map(k=>P[k]).filter(p=>p.trips>0||p.finds>0).sort((a,b)=>b.pts-a.pts);
+  return {list,trips:trips.reverse(),ziele,finds,totalPts};
+}
+function achievements(q){
+  return [
+    ['🚀','Erster Fund',q.finds>=1],['⭐','50 Funde',q.finds>=50],['💯','100 Punkte',q.pts>=100],['🏅','500 Punkte',q.pts>=500],
+    ['🥇','Erster Sieg',q.wins>=1],['🔥','Siegesserie (2)',q.maxStreak>=2],['👑','5 Siege',q.wins>=5],['🗺️','5 Fahrten',q.trips>=5],
+    ['🌙','Nachteule',q.night>=10],['🦄','Seltener Fund (10+)',q.rare&&q.rare.points>=10]
+  ];
+}
+function statsHTML(st){
+  if(!st.list.length)return '<div class="notice"><div class="ne">📭</div><p>Noch keine Daten. Nach der ersten Fahrt gibt es hier Zahlen, Erfolge und lustige Auszeichnungen.</p></div>';
+  const L=st.list;const lead=(fn,min)=>{let b=null,bv=min||0;L.forEach(p=>{const v=fn(p);if(v>bv){bv=v;b=p;}});return b?{p:b,v:bv}:null;};
+  const aw=[];
+  const add=(e,t,x,sub)=>{if(x)aw.push('<div class="awcard"><span class="ae">'+e+'</span><span><b>'+t+'</b><br><span class="as">'+avn(x.p)+(sub?' &middot; '+sub(x):'')+'</span></span></div>');};
+  add('🏆','Meiste Siege',lead(p=>p.wins),x=>x.v+'×');
+  add('💯','Punktekönig',lead(p=>p.pts),x=>x.v+' Punkte');
+  add('🔥','Längste Siegesserie',lead(p=>p.maxStreak,1),x=>x.v+' Fahrten in Folge');
+  add('🌙','Nachteule (Punkte nach 20 Uhr)',lead(p=>p.night),x=>x.v+' Punkte');
+  add('🐢','Spätzünder (holt zum Schluss auf)',lead(p=>p.late),x=>x.v+' Punkte im Endspurt');
+  add('🟡','Gelb-Fanatiker',lead(p=>p.gelb),x=>x.v+' Punkte');
+  add('🧠','Besserwisser',lead(p=>p.raetsel),x=>x.v+' Punkte');
+  add('👁️','Detektiv',lead(p=>p.ichsehe),x=>x.v+' Punkte');
+  add('🎯','Bingo-Boss',lead(p=>p.bingo),x=>x.v+' Punkte');
+  let rare=null;L.forEach(p=>{if(p.rare&&(!rare||p.rare.points>rare.r.points))rare={p,r:p.rare};});
+  if(rare)aw.push('<div class="awcard"><span class="ae">🦄</span><span><b>Seltenster Fund</b><br><span class="as">'+esc(rare.r.emoji)+' '+esc(rare.r.label)+' ('+rare.r.points+' Pkt) &middot; '+avn(rare.p)+' &middot; '+esc(rare.r.trip)+'</span></span></div>');
+  const zk=Object.keys(st.ziele).sort((a,b)=>st.ziele[b].n-st.ziele[a].n)[0];
+  const cards=L.map(q=>{
+    const favk=Object.keys(q.fav).sort((a,b)=>q.fav[b]-q.fav[a])[0];
+    const catTxt=CATS.filter(c=>q.cats[c.k]).map(c=>c.e+'×'+q.cats[c.k]).join(' ');
+    return '<div class="pcard" style="--c:'+q.color+'"><div class="phead"><span class="pav">'+(q.avatar||'🙂')+'</span><b>'+esc(q.name)+'</b></div>'+
+      '<div class="stline">🥇 Siege: '+q.wins+' &middot; ⭐ Punkte: '+q.pts+' &middot; 🚗 Fahrten: '+q.trips+' &middot; 📦 Funde: '+q.finds+'</div>'+
+      (q.best.score?'<div class="stline">Beste Fahrt: '+q.best.score+' Punkte ('+esc(q.best.trip)+')</div>':'')+
+      (favk?'<div class="stline">Lieblingsfund: '+esc(favk)+' ('+q.fav[favk]+'×)</div>':'')+
+      (catTxt?'<div class="stline">Abzeichen: '+catTxt+'</div>':'')+
+      '<div>'+achievements(q).map(a=>'<span class="ach '+(a[2]?'':'lock')+'">'+a[0]+' '+a[1]+'</span>').join('')+'</div></div>';
+  }).join('');
+  const trips=st.trips.map(t=>'<div class="ovrow" style="--c:#888"><span class="on2">'+esc(t.ziel)+'<br><span class="ow">'+(t.date?new Date(t.date).toLocaleDateString('de-DE'):'')+(t.winners.length?' &middot; 🏆 '+esc(t.winners.join(' & '))+(t.nick?' „'+esc(t.nick.n)+'“ '+t.nick.e:''):'')+'</span></span><span class="ot">'+t.topScore+'</span></div>').join('');
+  return '<div class="stline">🚗 '+st.trips.length+' Fahrten &middot; 📦 '+st.finds+' Funde &middot; ⭐ '+st.totalPts+' Punkte insgesamt'+((zk&&st.ziele[zk].n>1)?' &middot; 📍 Lieblingsziel: '+esc(st.ziele[zk].label)+' ('+st.ziele[zk].n+'×)':'')+'</div>'+
+    '<div class="modeinfo">Trophäenschrank</div>'+cards+
+    (aw.length?'<div class="modeinfo" style="margin-top:14px">Rekorde &amp; Auszeichnungen</div>'+aw.join(''):'')+
+    '<div class="modeinfo" style="margin-top:14px">Alle Fahrten</div>'+trips;
+}
 
 boot();
 </script>
