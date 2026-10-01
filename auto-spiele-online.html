@@ -1014,13 +1014,49 @@ function loadFamilien(){
     el.innerHTML=keys.map(k=>{
       const i=v[k];const open=i.status==='open';
       return '<div class="notice" style="text-align:left;margin-bottom:10px"><b>'+esc(i.label||k)+'</b> &middot; '+(open?'⏳ wartet auf Einrichtung':'✅ eingerichtet')+
-        (open?'<div style="font-size:12px;word-break:break-all;margin:8px 0;color:var(--asphalt-soft)">'+esc(famLink(k))+'</div><div class="rowbtns"><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Teilen</button><button class="softbtn" onclick="copyFam(\''+k+'\')">📋 Kopieren</button><button class="softbtn warn" onclick="delInvite(\''+k+'\')">🗑️</button></div>':'')+'</div>';
+        (open?'<div style="font-size:12px;word-break:break-all;margin:8px 0;color:var(--asphalt-soft)">'+esc(famLink(k))+'</div><div class="rowbtns"><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Teilen</button><button class="softbtn" onclick="copyFam(\''+k+'\')">📋 Kopieren</button><button class="softbtn warn" onclick="delInvite(\''+k+'\')">🗑️</button></div>'
+        :'<div class="rowbtns" style="margin-top:8px"><button class="softbtn" onclick="famResetPin(\''+k+'\')">🔑 Neue PIN</button><button class="softbtn" onclick="famEditNames(\''+k+'\')">✎ Namen</button><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Link</button><button class="softbtn warn" onclick="famDelete(\''+k+'\')">🗑️ Löschen</button></div>')+'</div>';
     }).join('');
   });
 }
 function copyFam(k){const l=famLink(k);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(l).then(()=>toast('Link kopiert ✓'),()=>prompt('Link kopieren:',l));}else{prompt('Link kopieren:',l);}}
 function shareFam(k){const l=famLink(k);if(navigator.share){navigator.share({title:'Auto-Spiele',text:'Hier ist euer Link f\u00fcr die Auto-Spiele:',url:l}).catch(()=>{});}else{copyFam(k);}}
 function delInvite(k){if(!me||!me.isChef||FAM)return;if(confirm('Diesen Link l\u00f6schen? Er funktioniert dann nicht mehr.'))db.ref('invites/'+k).remove();}
+
+function famResetPin(k){
+  if(!me||!me.isChef||FAM)return;
+  const pin=(prompt('Neue PIN f\u00fcr diese Familie (4\u20138 Ziffern):')||'').trim();
+  if(!pin)return;
+  if(!/^[0-9]{4,8}$/.test(pin)){toast('PIN: 4 bis 8 Ziffern');return;}
+  const salt=Math.random().toString(36).slice(2,10);
+  hashPin(pin,salt).then(h=>{db.ref('fam/'+k+'/setup').update({salt,pinHash:h}).then(()=>toast('Neue PIN gespeichert ✓'));});
+}
+function famEditNames(k){
+  if(!me||!me.isChef||FAM)return;
+  db.ref('fam/'+k+'/setup').once('value',s=>{
+    const st=s.val();if(!st||!st.players)return;
+    const pl=st.players.map(p=>Object.assign({},p));
+    for(const p of pl){
+      const n=prompt('Name ('+(p.chef?'Vater':'Kind')+'), leer lassen = behalten:',p.name);
+      if(n===null)return;
+      if(n.trim())p.name=n.trim().slice(0,12);
+    }
+    const chef=pl.find(p=>p.chef);
+    db.ref('fam/'+k+'/setup').update({players:pl,chef:{id:chef.id,name:chef.name}});
+    db.ref('fam/'+k+'/rooms').once('value',rs=>{
+      const rooms=rs.val()||{};const up={};
+      Object.keys(rooms).forEach(r=>{const rp=(rooms[r]&&rooms[r].players)||{};pl.forEach(p=>{if(rp[p.id])up['rooms/'+r+'/players/'+p.id+'/name']=p.name;});});
+      if(Object.keys(up).length)db.ref('fam/'+k).update(up);
+      toast('Namen gespeichert ✓');
+    });
+  });
+}
+function famDelete(k){
+  if(!me||!me.isChef||FAM)return;
+  if(!confirm('Diese Familie mit ALLEN Fahrten und Punkten endg\u00fcltig l\u00f6schen?'))return;
+  if(!confirm('Wirklich l\u00f6schen? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden.'))return;
+  db.ref('fam/'+k).remove();db.ref('invites/'+k).remove();toast('Familie gel\u00f6scht');
+}
 
 boot();
 </script>
