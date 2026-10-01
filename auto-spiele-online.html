@@ -193,6 +193,11 @@
   .avs{display:flex;flex-wrap:wrap;gap:6px;}
   .av{font-size:26px;width:44px;height:44px;border-radius:12px;background:#f3f0e6;} .av.on{background:var(--sonne);box-shadow:0 0 0 3px var(--asphalt);}
   .edsec{font-weight:900;margin:14px 0 8px;}
+  .pkrow{display:flex;gap:8px;margin-bottom:8px;}
+  .pk{flex:1;background:#f3f0e6;border-radius:12px;padding:10px;font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .pk.on{background:var(--sonne);} .pkv{font-size:24px;line-height:1;} .pkdot{width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 2px #ddd;}
+  .pkpanel{max-height:260px;overflow-y:auto;background:#fff;border:2px solid #e6e2d6;border-radius:14px;padding:10px;margin-bottom:8px;}
+  .avg{font-size:12px;font-weight:900;color:var(--asphalt-soft);margin:8px 0 4px;}
   #driveMode{display:none;position:fixed;inset:0;z-index:2000;background:#15141a;padding:10px;}
   #driveMode.on{display:flex;flex-direction:column;}
   #driveGrid{flex:1;display:grid;gap:10px;min-height:0;}
@@ -582,8 +587,22 @@ const BASE=FAM?('fam/'+FAM+'/'):'';
 const LSP='playerId_'+(FAM?FAM+'_':'');
 let _syncKey='', LAST_LOB={};
 let CHEF_ID='tobias', CHEF_NAME='Tobias', PLAYERS=DEFAULT_PLAYERS, FAM_SETUP=null, PROF={};
-const COLORS=['#5D4037','#2FB37A','#E8478E','#2D7DD2','#FB8C00','#8E44AD','#16A085','#c0392b','#F9A825','#546E7A','#7CB342','#00897B'];
-const AVATARS=['🦊','🐼','🦁','🐯','🐸','🐵','🦄','🐙','🦖','🐶','🐱','🐰','🐻','🦉','🐧','🐢','🚀','⚽','🌟','🎸'];
+const COLORS=['#5D4037','#2FB37A','#E8478E','#2D7DD2','#FB8C00','#8E44AD','#16A085','#c0392b','#F9A825','#546E7A','#7CB342','#00897B','#E91E63','#9C27B0','#3F51B5','#03A9F4','#00BCD4','#4CAF50','#CDDC39','#FFC107','#FF5722','#795548','#2B2A33','#FF8A80'];
+const AV_GROUPS=[
+ ['🐾 Tiere',['🦊','🐼','🦁','🐯','🐸','🐵','🐶','🐱','🐰','🐻','🐨','🐷','🐮','🐴','🦉','🐧','🐢','🦋','🐙','🦈','🐬','🐳','🦒','🦓','🦘','🦔','🐊','🦜']],
+ ['🚗 Fahrzeuge & Sport',['🚗','🏎️','🚓','🚑','🚒','🚜','🚚','🚌','🏍️','🚲','🛴','🚁','✈️','🚀','🛸','⛵','🚂','⚽','🏀','🏈','🎾','🏓','🏆','🎸']],
+ ['🙂 Gesichter & Fantasie',['😎','🤩','🥳','😇','🤓','🥰','😴','🤠','🧐','🤗','🧙','🧛','🧚','🦸','🥷','🧜','🧞','🐲','🦄','👸','🤴','🎅','🌟','🔥']],
+ ['😂 Witziges',['💩','🤡','👻','👽','🤪','😈','🤖','👾','🥸','🤯','😜','🤢','🥵','🥶','🤑','🙈','🙉','🙊','🦖','🍕','🌮','🍌','🥑','🧀']]
+];
+const AVATARS=[].concat.apply([],AV_GROUPS.map(g=>g[1]));
+let PROFOPEN=null;
+function pickerHTML(cur,open,tog,set){
+  const b=(kind,lbl,inner)=>'<button class="pk'+(open===kind?' on':'')+'" onclick="'+tog(kind)+'">'+inner+' '+lbl+' '+(open===kind?'▴':'▾')+'</button>';
+  let h='<div class="pkrow">'+b('avatar','Bild','<span class="pkv">'+(cur.avatar||'🙂')+'</span>')+b('color','Farbe','<span class="pkdot" style="background:'+cur.color+'"></span>')+'</div>';
+  if(open==='color')h+='<div class="swatches pkpanel">'+COLORS.map(c=>'<button class="sw'+(c===cur.color?' on':'')+'" style="background:'+c+'" onclick="'+set('color',c)+'"></button>').join('')+'</div>';
+  if(open==='avatar')h+='<div class="pkpanel">'+AV_GROUPS.map(g=>'<div class="avg">'+g[0]+'</div><div class="avs">'+g[1].map(a=>'<button class="av'+(a===cur.avatar?' on':'')+'" onclick="'+set('avatar',a)+'">'+a+'</button>').join('')+'</div>').join('')+'</div>';
+  return h;
+}
 const ROLE={vater:'Vater 👑',mutter:'Mutter 👑',kind:'Kind'};
 function arr(x){return Array.isArray(x)?x:Object.keys(x||{}).map(k=>x[k]);}
 function isChefId(id){return FAM?!!(PROF[id]&&PROF[id].chef):id===CHEF_ID;}
@@ -1148,7 +1167,7 @@ function famDelete(k){
 let ED=null, FE_CODE=null;
 function newId(){return 'k'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);}
 function edUnused(list,key){return list.find(x=>!ED.people.some(p=>p[key]===x))||list[0];}
-function edInit(people,cid){ED={people:people.map(p=>Object.assign({},p)),cid};}
+function edInit(people,cid){ED={people:people.map(p=>Object.assign({},p)),cid,open:null};}
 function initSetup(){
   edInit([
     {id:'papa',name:'',role:'vater',chef:true,color:COLORS[0],avatar:AVATARS[0]},
@@ -1158,11 +1177,12 @@ function initSetup(){
 }
 function edAdd(role){
   const p={id:role==='vater'?'papa':role==='mutter'?'mama':newId(),name:'',role,chef:role!=='kind',color:edUnused(COLORS,'color'),avatar:edUnused(AVATARS,'avatar')};
-  ED.people.push(p);edRender();
+  ED.people.push(p);ED.open=null;edRender();
 }
 function edClearPin(i){ED.people[i].clearPin=true;ED.people[i].newPin='';edRender();}
-function edDel(i){ED.people.splice(i,1);edRender();}
-function edSet(i,k,v){ED.people[i][k]=v;edRender();}
+function edDel(i){ED.people.splice(i,1);ED.open=null;edRender();}
+function edSet(i,k,v){ED.people[i][k]=v;ED.open=null;edRender();}
+function edTog(i,kind){ED.open=(ED.open&&ED.open.i===i&&ED.open.kind===kind)?null:{i,kind};edRender();}
 function edRender(){
   const el=document.getElementById(ED.cid);if(!el)return;
   const P=ED.people;const parents=P.filter(p=>p.role!=='kind'),kids=P.filter(p=>p.role==='kind');
@@ -1171,8 +1191,7 @@ function edRender(){
     return '<div class="pcard" style="--c:'+p.color+'"><div class="phead"><span class="pav">'+(p.avatar||'🙂')+'</span><b>'+ROLE[p.role]+'</b>'+(canDel?'<button class="pdel" onclick="edDel('+i+')">✕</button>':'')+'</div>'+
       '<input class="pname" maxlength="12" placeholder="Name" value="'+esc(p.name)+'" oninput="ED.people['+i+'].name=this.value" autocomplete="off">'+
       (p.role==='kind'?'<div class="hint" style="text-align:left;margin:0 0 4px">'+(p.pinHash&&!p.clearPin?'🔒 PIN gesetzt &middot; <a href="#" onclick="edClearPin('+i+');return false;">entfernen</a>':(p.clearPin?'PIN wird beim Speichern entfernt':'Kinder-PIN (optional)'))+'</div><input class="pname" inputmode="numeric" maxlength="8" placeholder="'+(p.pinHash&&!p.clearPin?'neue PIN (leer = behalten)':'PIN, z.B. 1234 (leer = keine)')+'" value="'+esc(p.newPin||'')+'" oninput="ED.people['+i+'].newPin=this.value" autocomplete="off">':'')+
-      '<div class="swatches">'+COLORS.map(c=>'<button class="sw'+(c===p.color?' on':'')+'" style="background:'+c+'" onclick="edSet('+i+',\'color\',\''+c+'\')"></button>').join('')+'</div>'+
-      '<div class="avs">'+AVATARS.map(a=>'<button class="av'+(a===p.avatar?' on':'')+'" onclick="edSet('+i+',\'avatar\',\''+a+'\')">'+a+'</button>').join('')+'</div></div>';};
+      pickerHTML(p,ED.open&&ED.open.i===i?ED.open.kind:null,k=>"edTog("+i+",'"+k+"')",(k,v)=>"edSet("+i+",'"+k+"','"+v+"')")+'</div>';};
   const addP=parents.length<2?['vater','mutter'].filter(r=>!parents.some(p=>p.role===r)).map(r=>'<button class="miniadd" onclick="edAdd(\''+r+'\')">➕ '+ROLE[r].replace(' 👑','')+' hinzuf&uuml;gen</button>').join(''):'';
   el.innerHTML='<div class="edsec">Eltern</div>'+parents.map(card).join('')+addP+'<div class="edsec">Kinder</div>'+kids.map(card).join('')+(kids.length<6?'<button class="miniadd" onclick="edAdd(\'kind\')">➕ Kind hinzuf&uuml;gen</button>':'');
 }
@@ -1226,14 +1245,14 @@ async function feSave(){
 }
 
 // ===== Eigenes Profil =====
-function openProfil(){if(!me)return;go('profil');renderProfil();}
+function openProfil(){if(!me)return;PROFOPEN=null;go('profil');renderProfil();}
+function profTog(kind){PROFOPEN=(PROFOPEN===kind)?null:kind;renderProfil();}
 function renderProfil(){
   const el=document.getElementById('profBody');if(!el||!me)return;
   el.style.setProperty('--c',me.color||'#ccc');
   el.innerHTML='<div class="phead"><span class="pav">'+(me.avatar||'🙂')+'</span><b>'+esc(me.name)+'</b></div>'+
     (me.isChef?'<input class="pname" id="profName" maxlength="12" value="'+esc(me.name)+'" onchange="profName(this.value)" autocomplete="off"><div class="hint" style="margin:-4px 0 10px;text-align:left">Name &auml;ndern: eintippen und best&auml;tigen.</div>':'')+
-    '<div class="swatches">'+COLORS.map(c=>'<button class="sw'+(c===me.color?' on':'')+'" style="background:'+c+'" onclick="profSet(\'color\',\''+c+'\')"></button>').join('')+'</div>'+
-    '<div class="avs">'+AVATARS.map(a=>'<button class="av'+(a===me.avatar?' on':'')+'" onclick="profSet(\'avatar\',\''+a+'\')">'+a+'</button>').join('')+'</div>';
+    pickerHTML(me,PROFOPEN,k=>"profTog('"+k+"')",(k,v)=>"profSet('"+k+"','"+v+"')");
 }
 function profName(v){
   v=(v||'').trim().slice(0,12);if(!v||!me||!me.isChef)return;
@@ -1244,7 +1263,7 @@ function profName(v){
   toast('Name ge\u00e4ndert ✓');
 }
 function profSet(k,v){
-  me[k]=v;
+  me[k]=v;PROFOPEN=null;
   if(FAM&&PROF[me.id]){const idx=FAM_SETUP.players.findIndex(p=>p.id===me.id);if(idx>=0)R('setup/players/'+idx).update({[k]:v});}
   else if(!FAM){R('profiles/'+me.id).update({[k]:v});}
   else{roomRef.child('players/'+me.id).update({[k]:v});}
