@@ -213,6 +213,22 @@ const APPROVAL_MIN = 5;
   </ol></div>
 </div>
 
+<div class="fullscreen" id="famSetup" style="display:none">
+  <div class="logo">👪</div><h1>Willkommen!</h1>
+  <p class="lead">Richtet eure Familie kurz ein. Das geht nur einmal.</p>
+  <div class="field"><label>Name des Vaters (Chef 👑)</label><input id="fsPapa" maxlength="12" placeholder="Name" autocomplete="off"></div>
+  <div class="field"><label>Eure PIN (4&ndash;8 Ziffern)</label><input id="fsPin" class="code" inputmode="numeric" maxlength="8" placeholder="****" autocomplete="off"></div>
+  <div class="field"><label>Kind 1</label><input id="fsK1" maxlength="12" placeholder="Name" autocomplete="off"></div>
+  <div class="field"><label>Kind 2</label><input id="fsK2" maxlength="12" placeholder="Name" autocomplete="off"></div>
+  <button class="miniadd" onclick="doFamSetup()">✅ Fertig, los geht's</button>
+  <p class="hint" id="famErr" style="color:#c0392b;font-weight:800"></p>
+  <p class="hint">Mit der PIN meldet sich der Vater sp&auml;ter als Chef an.</p>
+</div>
+<div class="fullscreen" id="famInvalid" style="display:none">
+  <div class="logo">🔒</div><h1>Link nicht g&uuml;ltig</h1>
+  <p class="lead">Dieser Link ist unbekannt oder wurde zur&uuml;ckgezogen. Frag bitte nach einem neuen Link.</p>
+</div>
+
 <div class="fullscreen" id="login" style="display:none">
   <div class="logo">🚗</div><h1>Auto-Spiele</h1>
   <p class="lead">Starte eine neue Fahrt oder mach bei einer weiter.</p>
@@ -233,7 +249,7 @@ const APPROVAL_MIN = 5;
     <p class="hint"><a href="#" onclick="showLobby();return false;">andere Fahrt</a></p>
   </div>
   <div id="pinView" style="display:none">
-    <div class="field"><label>PIN f&uuml;r Tobias</label><input id="pin" class="code" inputmode="numeric" maxlength="8" placeholder="****"></div>
+    <div class="field"><label>PIN f&uuml;r <span class="chefName">Tobias</span></label><input id="pin" class="code" inputmode="numeric" maxlength="8" placeholder="****"></div>
     <button class="miniadd" onclick="checkPin()">Einloggen</button>
     <p class="hint" id="pinHint"><a href="#" onclick="backToPick();return false;">zur&uuml;ck</a></p>
   </div>
@@ -270,6 +286,7 @@ const APPROVAL_MIN = 5;
         <button class="softbtn" id="refBtn" onclick="go('schiri')" style="display:none">⚖️ Schiedsrichter</button>
         <button class="softbtn" id="punkteBtn" onclick="go('punkte')" style="display:none">✎ Punkte</button>
         <button class="softbtn warn" id="resetBtn" onclick="resetAll()" style="display:none">🔄 Neue Runde</button>
+        <button class="softbtn" id="famBtn" onclick="go('familien')" style="display:none">👪 Familien</button>
         <button class="softbtn" onclick="leaveRoom()">⇄ Fahrt</button>
       </div>
     </section>
@@ -327,7 +344,7 @@ const APPROVAL_MIN = 5;
       <h2 class="title">🎯 Dingo-Bingo</h2>
       <div class="switcher" id="bingoModes"></div><div class="modeinfo" id="bingoModeInfo"></div>
       <div id="bingoSetup" style="display:none">
-        <p class="sub">Trage bis zu 5 Dinge ein (nur Tobias):</p>
+        <p class="sub">Trage bis zu 5 Dinge ein (nur <span class="chefName">Tobias</span>):</p>
         <div id="bingoInputs"></div>
       </div>
       <div class="bingocard" id="bingoCard"></div>
@@ -341,6 +358,15 @@ const APPROVAL_MIN = 5;
       <div id="badgeBox"></div>
       <div id="breakdown"></div>
       <div class="rowbtns"><button class="softbtn warn" id="reset2" onclick="resetAll()" style="display:none">🔄 Neue Runde</button><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
+    </section>
+
+    <section class="screen" id="familien">
+      <h2 class="title">👪 Familien</h2>
+      <p class="sub">Erzeuge einen Link f&uuml;r eine neue Familie. Wer ihn &ouml;ffnet, richtet sich einmalig selbst ein. Danach ist es eine eigene, getrennte App.</p>
+      <div class="field"><label>Name zur Erinnerung (nur f&uuml;r dich)</label><input id="famLabel" maxlength="24" placeholder="z.B. Lauterborn" autocomplete="off"></div>
+      <button class="miniadd" onclick="createInvite()">🔗 Neuen Link erzeugen</button>
+      <div id="famList" style="margin-top:16px"></div>
+      <div class="rowbtns"><button class="softbtn" onclick="go('home')">🏠 Men&uuml;</button></div>
     </section>
 
     <section class="screen" id="schiri">
@@ -501,10 +527,15 @@ const SEED = {
 const GAMES = ['gelb','jagd','ichsehe','raetsel','bingo'];
 const GAME_LABEL = {gelb:'🟡 Gelbes Auto',jagd:'🔍 Jagd',ichsehe:'👁️ Ich sehe was',raetsel:'🧩 Raetsel',bingo:'🎯 Bingo'};
 
+const FAM=(new URLSearchParams(location.search).get('f')||'').toLowerCase().replace(/[^a-z0-9-]/g,'').slice(0,30);
+const BASE=FAM?('fam/'+FAM+'/'):'';
+const LSP='playerId_'+(FAM?FAM+'_':'');
+let CHEF_ID='tobias', CHEF_NAME='Tobias', PLAYERS=DEFAULT_PLAYERS, FAM_SETUP=null;
 let db=null, roomRef=null, roomCode=null, room={}, me=null, joinCode=null, pendingPick=null;
 let editMode={}, listenerReady=false, prevSpyTurn=null, _lastLeader='', _confettiShownFor='';
 let localSpyPick=null, localRiddleLevel='leicht', localRiddle=null, localBingoInputs=['','','','',''];
 
+function R(p){return db.ref(BASE+p);}
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
@@ -529,9 +560,47 @@ function boot(){
   const ok=firebaseConfig.apiKey&&!firebaseConfig.apiKey.includes('HIER_')&&firebaseConfig.databaseURL&&!firebaseConfig.databaseURL.includes('HIER_');
   if(!ok){document.getElementById('setup').style.display='flex';return;}
   try{firebase.initializeApp(firebaseConfig);db=firebase.database();}catch(e){document.getElementById('setup').style.display='flex';return;}
+  if(!FAM){startLogin();return;}
+  R('setup').once('value',s=>{
+    const st=s.val();
+    if(st&&st.done){applyFamSetup(st);startLogin();return;}
+    db.ref('invites/'+FAM).once('value',iv=>{
+      const inv=iv.val();
+      if(inv&&inv.status==='open'){document.getElementById('famSetup').style.display='flex';}
+      else{document.getElementById('famInvalid').style.display='flex';}
+    });
+  });
+}
+function startLogin(){
+  document.getElementById('famSetup').style.display='none';
   document.getElementById('login').style.display='flex';
   showLobby();
-  db.ref('lobby').on('value',s=>renderHistory(s.val()||{}));
+  R('lobby').on('value',s=>renderHistory(s.val()||{}));
+}
+function applyFamSetup(st){
+  FAM_SETUP=st;CHEF_ID=st.chef.id;CHEF_NAME=st.chef.name;PLAYERS=st.players;
+  document.querySelectorAll('.chefName').forEach(e=>e.textContent=CHEF_NAME);
+}
+async function hashPin(pin,salt){
+  const str=salt+':'+pin;
+  try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');}
+  catch(e){let h=5381;for(let i=0;i<str.length;i++)h=((h<<5)+h+str.charCodeAt(i))|0;return 'x'+h;}
+}
+function famErr(m){const e=document.getElementById('famErr');e.textContent=m;}
+async function doFamSetup(){
+  const g=id=>(document.getElementById(id).value||'').trim();
+  const papa=g('fsPapa'),pin=g('fsPin'),k1=g('fsK1'),k2=g('fsK2');
+  if(!papa||!k1||!k2){famErr('Bitte alle drei Namen eintragen.');return;}
+  if(!/^[0-9]{4,8}$/.test(pin)){famErr('Die PIN braucht 4 bis 8 Ziffern.');return;}
+  const salt=Math.random().toString(36).slice(2,10);
+  const data={done:true,created:Date.now(),salt,pinHash:await hashPin(pin,salt),
+    chef:{id:'papa',name:papa},
+    players:[{id:'papa',name:papa,color:'#5D4037',chef:true},{id:'kind1',name:k1,color:'#2FB37A'},{id:'kind2',name:k2,color:'#E8478E'}]};
+  R('setup').transaction(cur=>cur?undefined:data,(err,committed)=>{
+    if(err||!committed){famErr('Diese Familie ist schon eingerichtet. Lade die Seite neu.');return;}
+    db.ref('invites/'+FAM).update({status:'done',doneAt:Date.now()});
+    applyFamSetup(data);startLogin();
+  },false);
 }
 function renderHistory(lob){
   const keys=Object.keys(lob).sort((a,b)=>((lob[b].date||0)-(lob[a].date||0)));
@@ -545,34 +614,34 @@ function slug(s){return s.toUpperCase().replace(/[^A-Z0-9]+/g,'-').replace(/^-+|
 function doCreateFahrt(){
   const ziel=(document.getElementById('zielInput').value||'').trim();if(!ziel)return;
   const d=new Date();const code=slug(ziel)+'-'+String(d.getDate()).padStart(2,'0')+String(d.getMonth()+1).padStart(2,'0');
-  db.ref('lobby/'+code).update({ziel,date:Date.now()});
-  db.ref('rooms/'+code+'/meta').update({ziel,created:Date.now()});
+  R('lobby/'+code).update({ziel,date:Date.now()});
+  R('rooms/'+code+'/meta').update({ziel,created:Date.now()});
   enterRoom(code,ziel);
 }
 function enterRoom(code,zielKnown){
   joinCode=code;
   document.getElementById('lobbyView').style.display='none';
   document.getElementById('createView').style.display='none';
-  db.ref('rooms/'+code+'/players').once('value',s=>{
+  R('rooms/'+code+'/players').once('value',s=>{
     if(!s.val()){
-      const seed={};DEFAULT_PLAYERS.forEach((p,i)=>seed[p.id]={name:p.name,color:p.color,score:0,order:i});
-      db.ref('rooms/'+code+'/players').set(seed);
-      db.ref('rooms/'+code+'/content').set(SEED);
-      db.ref('rooms/'+code+'/config').set({roadType:'autobahn',referees:{},modes:{},round:{}});
+      const seed={};PLAYERS.forEach((p,i)=>seed[p.id]={name:p.name,color:p.color,score:0,order:i});
+      R('rooms/'+code+'/players').set(seed);
+      R('rooms/'+code+'/content').set(SEED);
+      R('rooms/'+code+'/config').set({roadType:'autobahn',referees:{},modes:{},round:{}});
     }
-    db.ref('rooms/'+code+'/meta').once('value',ms=>{
+    R('rooms/'+code+'/meta').once('value',ms=>{
       const z=zielKnown||(ms.val()&&ms.val().ziel)||code;
       document.getElementById('pickRoom').textContent=z;
-      db.ref('lobby/'+code).update({ziel:z,date:(ms.val()&&ms.val().created)||Date.now()});
+      R('lobby/'+code).update({ziel:z,date:(ms.val()&&ms.val().created)||Date.now()});
     });
-    db.ref('rooms/'+code+'/players').once('value',s2=>{renderPick(s2.val()||{});document.getElementById('pickView').style.display='block';});
+    R('rooms/'+code+'/players').once('value',s2=>{renderPick(s2.val()||{});document.getElementById('pickView').style.display='block';});
   });
 }
 function renderPick(pl){
   const arr=Object.keys(pl).map(id=>Object.assign({id},pl[id])).sort((a,b)=>(a.order||0)-(b.order||0));
-  const savedId=lsGet('playerId_'+joinCode);
+  const savedId=lsGet(LSP+joinCode);
   document.getElementById('nameBtns').innerHTML=arr.map(p=>{
-    const chef=DEFAULT_PLAYERS.find(d=>d.id===p.id&&d.chef);
+    const chef=p.id===CHEF_ID;
     return '<button class="namebtn '+(p.id===savedId?'sel':'')+'" style="--c:'+p.color+'" onclick="pickName(\''+p.id+'\',\''+esc(p.name)+'\',\''+p.color+'\','+(chef?1:0)+')">'+esc(p.name)+(chef?'<span class="tag">Chef 👑</span>':'')+'</button>';
   }).join('');
 }
@@ -581,25 +650,27 @@ function pickName(id,name,color,chef){
   if(chef){pendingPick={id,name,color,chef:true};document.getElementById('pickView').style.display='none';document.getElementById('pinView').style.display='block';document.getElementById('pin').value='';document.getElementById('pin').focus();return;}
   me={id,name,color,isChef:false};finishJoin();
 }
-function checkPin(){
-  if(document.getElementById('pin').value===ADMIN_PIN){me=Object.assign({},pendingPick,{isChef:true});finishJoin();}
+async function checkPin(){
+  const v=document.getElementById('pin').value;
+  const ok=FAM?((await hashPin(v,FAM_SETUP.salt))===FAM_SETUP.pinHash):(v===ADMIN_PIN);
+  if(ok){me=Object.assign({},pendingPick,{isChef:true});finishJoin();}
   else{document.getElementById('pinHint').innerHTML='Falsche PIN. <a href="#" onclick="backToPick();return false;">zur&uuml;ck</a>';beep(300,0.15);}
 }
 function backToPick(){['pinView','addView'].forEach(v=>document.getElementById(v).style.display='none');document.getElementById('pickView').style.display='block';}
 function showAddPlayer(){document.getElementById('pickView').style.display='none';document.getElementById('addView').style.display='block';document.getElementById('newName').value='';document.getElementById('newName').focus();}
 function doAddPlayer(){
   const nm=(document.getElementById('newName').value||'').trim();if(!nm)return;
-  db.ref('rooms/'+joinCode+'/players').once('value',s=>{
+  R('rooms/'+joinCode+'/players').once('value',s=>{
     const pl=s.val()||{};const n=Object.keys(pl).length;const nid='p'+Date.now().toString(36);
-    const color=PALETTE[(n-DEFAULT_PLAYERS.length+PALETTE.length*3)%PALETTE.length]||PALETTE[0];
-    db.ref('rooms/'+joinCode+'/players/'+nid).set({name:nm,color,score:0,order:n});
-    db.ref('rooms/'+joinCode+'/players').once('value',s2=>{renderPick(s2.val()||{});backToPick();});
+    const color=PALETTE[(n-PLAYERS.length+PALETTE.length*3)%PALETTE.length]||PALETTE[0];
+    R('rooms/'+joinCode+'/players/'+nid).set({name:nm,color,score:0,order:n});
+    R('rooms/'+joinCode+'/players').once('value',s2=>{renderPick(s2.val()||{});backToPick();});
   });
 }
 
 function finishJoin(){
-  roomCode=joinCode;roomRef=db.ref('rooms/'+roomCode);
-  lsSet('playerId_'+roomCode,me.id);
+  roomCode=joinCode;roomRef=R('rooms/'+roomCode);
+  lsSet(LSP+roomCode,me.id);
   listenerReady=false;prevSpyTurn=null;
   roomRef.on('value',s=>{room=s.val()||{};renderAll();});
   db.ref('.info/connected').on('value',s=>document.getElementById('connDot').classList.toggle('on',s.val()===true));
@@ -611,6 +682,7 @@ function finishJoin(){
   document.getElementById('whoLabel').textContent=me.name+(me.isChef?' (Chef)':'');
   document.getElementById('heroHi').textContent='Hallo '+me.name+'! 🚀';
   ['refBtn','punkteBtn','resetBtn','reset2','gelbEdit','jagdEdit','spyEdit','raetselEdit','bingoEdit'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=me.isChef?'flex':'none';});
+  document.getElementById('famBtn').style.display=(me.isChef&&!FAM)?'flex':'none';
   go('home');
 }
 function leaveRoom(){if(roomRef){roomRef.off();db.ref('.info/connected').off();}document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex';showLobby();}
@@ -621,7 +693,7 @@ function cfg(){return room.config||{};}
 function modeOf(g){let m=(cfg().modes||{})[g]||'gesamt';if(m==='endlos')m='gesamt';return m;}
 function roundCfg(g){return (cfg().round||{})[g]||{type:'target',target:10};}
 function content(){return room.content||SEED;}
-function activeReferees(){const r=(cfg().referees)||{};const list=['tobias'];Object.keys(r).forEach(k=>{if(r[k]&&k!=='tobias')list.push(k);});return list;}
+function activeReferees(){const r=(cfg().referees)||{};const list=[CHEF_ID];Object.keys(r).forEach(k=>{if(r[k]&&k!==CHEF_ID)list.push(k);});return list;}
 function isRefereeFor(p){if(!me)return false;if(p.finderId===me.id)return false;return activeReferees().includes(me.id);}
 function playerName(id){return (room.players&&room.players[id]&&room.players[id].name)||id;}
 function playerColor(id){return (room.players&&room.players[id]&&room.players[id].color)||'#888';}
@@ -653,7 +725,7 @@ function approve(key,yes){
   roomRef.child('pending/'+key).once('value',s=>{
     const a=s.val();if(!a)return;
     if(!yes){roomRef.child('pending/'+key).remove();beep(300,0.14);return;}
-    if(me.isChef&&a.finderId!=='tobias'){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);return;}
+    if(me.isChef&&a.finderId!==CHEF_ID){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);return;}
     const approved=a.approved||{};approved[me.id]=true;
     const allOk=(a.needed||[]).every(n=>approved[n]);
     if(allOk){award(a.finderId,a.points,a.gameKey,a.label,a.emoji);roomRef.child('pending/'+key).remove();beep(1050,0.12);}
@@ -708,7 +780,7 @@ function renderAll(){
   if(listenerReady&&prevSpyTurn!==null&&curTurn&&curTurn!==prevSpyTurn)spyTurnHint(curTurn);
   if(curTurn)prevSpyTurn=curTurn;
   // Historie-Sieger (nur Chef schreibt)
-  if(me.isChef&&roomCode){const t=playersArr().slice().sort((a,b)=>(b.score||0)-(a.score||0))[0];const key=t?(t.id+':'+(t.score||0)):'';if(key!==_lastLeader){_lastLeader=key;if(t)db.ref('lobby/'+roomCode).update({leaderName:t.name,leaderScore:t.score||0});}}
+  if(me.isChef&&roomCode){const t=playersArr().slice().sort((a,b)=>(b.score||0)-(a.score||0))[0];const key=t?(t.id+':'+(t.score||0)):'';if(key!==_lastLeader){_lastLeader=key;if(t)R('lobby/'+roomCode).update({leaderName:t.name,leaderScore:t.score||0});}}
 }
 function renderBoard(){
   const arr=playersArr();const max=Math.max.apply(null,arr.map(p=>p.score||0).concat([0]));
@@ -867,8 +939,8 @@ function badgesHTML(){
 
 function renderSchiri(){
   if(!me.isChef)return;
-  const refs=(cfg().referees)||{};const kids=playersArr().filter(p=>p.id!=='tobias');
-  document.getElementById('refPanel').innerHTML='<h3>Aktive Schiedsrichter</h3><div class="reftoggle"><span class="rn">Tobias</span><span style="font-size:12px;color:var(--asphalt-soft);font-weight:700">immer 👑</span></div>'+
+  const refs=(cfg().referees)||{};const kids=playersArr().filter(p=>p.id!==CHEF_ID);
+  document.getElementById('refPanel').innerHTML='<h3>Aktive Schiedsrichter</h3><div class="reftoggle"><span class="rn">'+esc(CHEF_NAME)+'</span><span style="font-size:12px;color:var(--asphalt-soft);font-weight:700">immer 👑</span></div>'+
     kids.map(k=>'<div class="reftoggle"><span class="rn">'+esc(k.name)+'</span><div class="toggle '+(refs[k.id]?'on':'')+'" onclick="toggleRef(\''+k.id+'\')"></div></div>').join('');
 }
 function toggleRef(id){if(!me.isChef)return;const refs=(cfg().referees)||{};roomRef.child('config/referees/'+id).set(!refs[id]);}
@@ -908,6 +980,7 @@ function resetAll(){
 }
 
 function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo({top:0,behavior:'instant'});
+  if(id==='familien')loadFamilien();
   if(id==='auswertung'){const arr=playersArr();const top=Math.max.apply(null,arr.map(p=>p.score||0).concat([0]));const stamp=roomCode+':'+top;if(top>0&&stamp!==_confettiShownFor){_confettiShownFor=stamp;confetti();fanfare();}}
 }
 function showNotif(v){
@@ -919,6 +992,35 @@ function showNotif(v){
   setTimeout(()=>{dv.style.transition='.3s';dv.style.opacity='0';dv.style.transform='translateY(-120%)';setTimeout(()=>dv.remove(),300);},2600);
 }
 let toastTimer;function toast(m){const t=document.getElementById('toast');t.innerHTML=m;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1600);}
+
+function famLink(code){return location.origin+location.pathname+'?f='+code;}
+function newCode(){const a=new Uint8Array(6);try{crypto.getRandomValues(a);}catch(e){for(let i=0;i<6;i++)a[i]=Math.random()*256;}return 'f'+Array.from(a).map(x=>(x%36).toString(36)).join('');}
+function createInvite(){
+  if(!me||!me.isChef||FAM)return;
+  const label=(document.getElementById('famLabel').value||'').trim()||'Neue Familie';
+  const code=newCode();
+  db.ref('invites/'+code).set({label,created:Date.now(),status:'open'});
+  document.getElementById('famLabel').value='';
+  toast('Link erzeugt ✓');
+}
+function loadFamilien(){
+  if(FAM||!db)return;
+  db.ref('invites').off();
+  db.ref('invites').on('value',s=>{
+    const v=s.val()||{};
+    const keys=Object.keys(v).sort((a,b)=>(v[b].created||0)-(v[a].created||0));
+    const el=document.getElementById('famList');
+    if(!keys.length){el.innerHTML='<div class="hint">Noch keine Familien eingeladen.</div>';return;}
+    el.innerHTML=keys.map(k=>{
+      const i=v[k];const open=i.status==='open';
+      return '<div class="notice" style="text-align:left;margin-bottom:10px"><b>'+esc(i.label||k)+'</b> &middot; '+(open?'⏳ wartet auf Einrichtung':'✅ eingerichtet')+
+        (open?'<div style="font-size:12px;word-break:break-all;margin:8px 0;color:var(--asphalt-soft)">'+esc(famLink(k))+'</div><div class="rowbtns"><button class="softbtn" onclick="shareFam(\''+k+'\')">📤 Teilen</button><button class="softbtn" onclick="copyFam(\''+k+'\')">📋 Kopieren</button><button class="softbtn warn" onclick="delInvite(\''+k+'\')">🗑️</button></div>':'')+'</div>';
+    }).join('');
+  });
+}
+function copyFam(k){const l=famLink(k);if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(l).then(()=>toast('Link kopiert ✓'),()=>prompt('Link kopieren:',l));}else{prompt('Link kopieren:',l);}}
+function shareFam(k){const l=famLink(k);if(navigator.share){navigator.share({title:'Auto-Spiele',text:'Hier ist euer Link f\u00fcr die Auto-Spiele:',url:l}).catch(()=>{});}else{copyFam(k);}}
+function delInvite(k){if(!me||!me.isChef||FAM)return;if(confirm('Diesen Link l\u00f6schen? Er funktioniert dann nicht mehr.'))db.ref('invites/'+k).remove();}
 
 boot();
 </script>
